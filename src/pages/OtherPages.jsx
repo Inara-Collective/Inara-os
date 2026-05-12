@@ -88,7 +88,6 @@ export function Modules() {
 }
 
 // Reporting.jsx
-import React, { useState, useEffect } from 'react'
 import { getReports, createReport, updateReport, deleteReport, getClients, HEALTH_OPTIONS, LEAK_STAGES } from '../lib/supabase.js'
 
 export function Reporting() {
@@ -178,7 +177,6 @@ function NewReportForm({ clients, onSave, onCancel }) {
 }
 
 // SOPs.jsx
-import React, { useState, useEffect } from 'react'
 import { getSops, createSop, updateSop, SOP_CATEGORIES } from '../lib/supabase.js'
 
 export function SOPs() {
@@ -256,7 +254,6 @@ function NewSOPForm({ onSave, onCancel }) {
 }
 
 // Outsource.jsx
-import React, { useState, useEffect } from 'react'
 import { getOutsource, createOutsource, updateOutsource, OUTSOURCE_ROLES } from '../lib/supabase.js'
 
 export function Outsource() {
@@ -340,7 +337,6 @@ function NewPersonForm({ onSave, onCancel }) {
 }
 
 // SystemFlow.jsx
-import React, { useState } from 'react'
 
 const STAGES = [
   {num:'01',who:'Connector',group:'Sales Team',title:'Find the Business',detail:'$1M+ businesses with inconsistent marketing.',points:['LinkedIn DM + content strategy','Instagram DM + genuine comments','Events + networking','Referrals from network','Cold outreach — any platform','70% relationship + curiosity. 30% value. Never pitch first.']},
