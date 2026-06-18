@@ -33,14 +33,18 @@ function ClientCard({ client, onClick }) {
 function NewClientModal({ onClose, onSave }) {
   const [form, setForm] = useState({ name:'', industry:'', stage:'Find', connector_name:'', fit_score:'', notes:'' })
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState(null)
   const set = (k,v) => setForm(f => ({...f,[k]:v}))
   const handleSave = async () => {
     if (!form.name.trim()) return
     setSaving(true)
+    setError(null)
     try {
       const c = await createClient_({ ...form, fit_score: form.fit_score ? Number(form.fit_score) : null })
       onSave(c)
-    } catch(e) { console.error(e) }
+    } catch(e) {
+      setError(e.message || 'Failed to create client')
+    }
     setSaving(false)
   }
   return (
@@ -48,6 +52,7 @@ function NewClientModal({ onClose, onSave }) {
       <div className="modal">
         <div className="modal-head"><div className="modal-title">New Client Record</div><button className="btn btn-ghost btn-sm" onClick={onClose}>✕</button></div>
         <div className="modal-body">
+          {error && <div style={{ background:'var(--red-bg)', border:'.5px solid var(--red-b)', borderRadius:'6px', padding:'.625rem .875rem', marginBottom:'.75rem', fontSize:'.76rem', color:'var(--red)' }}>{error}</div>}
           <div className="g2">
             <div className="form-group"><label className="form-label">Business name *</label><input className="form-input" value={form.name} onChange={e=>set('name',e.target.value)} autoFocus /></div>
             <div className="form-group"><label className="form-label">Industry & location</label><input className="form-input" value={form.industry} onChange={e=>set('industry',e.target.value)} /></div>
