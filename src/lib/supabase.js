@@ -161,6 +161,26 @@ export const updateOutsource = async (id, updates) => {
   return data
 }
 
+export const getUserProfile = async () => {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+  const { data, error } = await supabase.from('user_profiles').select('*').eq('id', user.id).single()
+  if (error) return null
+  return data
+}
+
+export const getUsers = async () => {
+  const { data, error } = await supabase.from('user_profiles').select('*').order('name')
+  if (error) throw error
+  return data || []
+}
+
+export const updateUserRole = async (id, role) => {
+  const { data, error } = await supabase.from('user_profiles').update({ role }).eq('id', id).select().single()
+  if (error) throw error
+  return data
+}
+
 export const PIPELINE_STAGES = [
   'Find','Score','Call 1 — Qualify','Call 2 — Intro',
   'Handover','Discovery Call','Diagnosis','Proposal Sent',
