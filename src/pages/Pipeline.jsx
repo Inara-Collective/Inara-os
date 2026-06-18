@@ -96,7 +96,7 @@ export default function Pipeline() {
   if (loading) return <div className="page"><div className="loading"><div className="spinner"></div>Loading pipeline...</div></div>
 
   return (
-    <div>
+    <div style={{ minWidth: 'max-content', height: '100%', display: 'flex', flexDirection: 'column' }}>
       <div className="topbar">
         <div className="topbar-title">Pipeline</div>
         <div className="topbar-actions">
@@ -111,8 +111,8 @@ export default function Pipeline() {
         </div>
       </div>
 
-      <div style={{ overflowX: 'auto', padding: '1.5rem 2rem 2rem', flex: 1 }}>
-        <div style={{ display: 'flex', gap: '1rem', minWidth: 'max-content', alignItems: 'start' }}>
+      <div style={{ padding: '1.5rem 2rem 2rem', flex: 1, overflowY: 'auto' }}>
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'start' }}>
           {SALES_STAGES.map(stage => {
             const col = filtered.filter(c => c.stage === stage)
             const color = STAGE_COLOR[stage]
