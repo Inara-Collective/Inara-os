@@ -232,7 +232,40 @@ export const deleteContentItem = async (id) => {
 
 export const ACTION_TAKEN_OPTIONS = ['Emailed','Called',"DM'd",'Met in person','Sent proposal','Sent invoice','Sent contract','Left voicemail','Sent follow-up','Made intro']
 export const NEXT_ACTION_OPTIONS = ['Send email','Make call','Send proposal','Follow up','Schedule meeting','Book discovery call','Send contract','Send invoice','Await response','No action needed']
-export const SALES_STAGES = ['New','Reached out','To Action','Discovery','Negotiation','Won','Lost','No Deal stage']
+export const CONNECTION_STRENGTHS = ['Cold','Warm','Hot','Existing relationship','Referral','Past client','Event connection']
+export const OPPORTUNITY_TAGS = [
+  'Great for content shoots','Lunch / relationship building','Strong referral opportunity',
+  'Full marketing package potential','Needs brand clarity','Needs social media structure',
+  'Good for email marketing','Website improvement needed','High-end audience fit',
+  'Strong partnership potential','Event / campaign opportunity','Warm connection','Needs nurturing'
+]
+export const RELATIONSHIP_ACTIONS = [
+  'Call them','Invite for coffee','Take to lunch','Send warm email',
+  'Send proposal','Send strategy offer','Invite to event','Follow up after event',
+  'Introduce to someone','Send content idea','Send audit feedback'
+]
+export const DIAG_AREAS = [
+  { key:'diag_brand_clarity', label:'Brand clarity' },
+  { key:'diag_messaging', label:'Messaging' },
+  { key:'diag_social_presence', label:'Social media presence' },
+  { key:'diag_content_consistency', label:'Content consistency' },
+  { key:'diag_website_journey', label:'Website journey' },
+  { key:'diag_email_marketing', label:'Email marketing' },
+  { key:'diag_lead_generation', label:'Lead generation' },
+  { key:'diag_sales_process', label:'Sales process' },
+  { key:'diag_customer_experience', label:'Customer experience' },
+  { key:'diag_retention', label:'Retention / repeat business' },
+  { key:'diag_campaign_opps', label:'Campaign opportunities' },
+  { key:'diag_partnership_opps', label:'Partnership opportunities' },
+]
+export const STAGE_TASK_FLOWS = {
+  'Discovery Call': ['Research business background','Review social media & website','Prepare discovery questions','Run discovery call','Take detailed notes','Send follow-up email'],
+  'Relationship Building': ['Send warm message','Comment on a recent post','Invite to coffee or lunch','Send a helpful idea','Add to nurture list','Set follow-up reminder for 2 weeks'],
+  'Make Proposal': ['Review diagnosis audit','Confirm client pain points','Choose recommended offer','Create proposal','Add pricing','Add case studies / examples','Send proposal email','Schedule proposal presentation','Follow up 3 days later'],
+  'Proposal Presented': ['Send thank-you email','Add proposal notes','Set follow-up date','Prepare objection responses','Send testimonial / proof if needed','Follow up with decision'],
+  'Client Won': ['Send onboarding email','Send invoice','Create client folder','Create Milanote / client board','Request brand assets','Book strategy call','Add client to content calendar','Set first delivery date','Add to active client dashboard'],
+  'Onboarding': ['Send onboarding welcome email','Confirm invoice paid','Book strategy kick-off call','Create client folder','Request brand assets','Set up client board','Add to content calendar','Brief the team'],
+}
 export const PIPELINE_STAGES = [
   ...SALES_STAGES,
   'Onboarding','Stage 1 — Clarity','Stage 2 — Structure',
