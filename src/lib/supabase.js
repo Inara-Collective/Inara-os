@@ -206,10 +206,9 @@ export const deleteContentItem = async (id) => {
   if (error) throw error
 }
 
+export const SALES_STAGES = ['New','Reached out','Discovery','Negotiation','Won','Lost','No Deal stage']
 export const PIPELINE_STAGES = [
-  'Find','Score','Call 1 — Qualify','Call 2 — Intro',
-  'Handover','Discovery Call','Diagnosis','Proposal Sent',
-  'Sales Call','Closed — Won','Closed — Lost',
+  ...SALES_STAGES,
   'Onboarding','Stage 1 — Clarity','Stage 2 — Structure',
   'Stage 3 — Growth Partner','Dial an Inara','Alumni'
 ]
