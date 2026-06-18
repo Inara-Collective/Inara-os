@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getClients, createClient_, PIPELINE_STAGES, SALES_STAGES } from '../lib/supabase.js'
+import { getClients, createClient_, getUsers, PIPELINE_STAGES, SALES_STAGES, ACTION_TAKEN_OPTIONS, NEXT_ACTION_OPTIONS } from '../lib/supabase.js'
 
 const STAGE_COLOR = {
   'New': 'var(--muted)',
@@ -75,6 +75,7 @@ function ClientCard({ client, onClick }) {
 
 export default function Pipeline() {
   const [clients, setClients] = useState([])
+  const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [showNew, setShowNew] = useState(null)
   const [search, setSearch] = useState('')
@@ -82,6 +83,7 @@ export default function Pipeline() {
 
   useEffect(() => {
     getClients().then(d => { setClients(d); setLoading(false) }).catch(() => setLoading(false))
+    getUsers().then(setUsers).catch(() => {})
   }, [])
 
   const filtered = clients.filter(c =>
@@ -152,7 +154,7 @@ export default function Pipeline() {
               <div className="modal-title">New Deal</div>
               <button className="btn btn-ghost btn-sm" onClick={() => setShowNew(null)}>✕</button>
             </div>
-            <NewDealForm defaultStage={showNew} onClose={() => setShowNew(null)} onSave={handleNew} />
+            <NewDealForm defaultStage={showNew} users={users} onClose={() => setShowNew(null)} onSave={handleNew} />
           </div>
         </div>
       )}
@@ -160,11 +162,22 @@ export default function Pipeline() {
   )
 }
 
-function NewDealForm({ defaultStage = 'New', onClose, onSave }) {
-  const [form, setForm] = useState({ name: '', company: '', contact_email: '', phone: '', contact_role: '', industry: '', stage: defaultStage, connector_name: '', action_taken: '', notes: '' })
+function NewDealForm({ defaultStage = 'New', users = [], onClose, onSave }) {
+  const [form, setForm] = useState({
+    name: '', company: '', contact_email: '', phone: '', contact_role: '', industry: '',
+    stage: defaultStage, connector_name: '', action_taken: '', next_action: '',
+    next_action_date: '', next_action_to_take: '', date_contacted: '', assigned_to: '', notes: ''
+  })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  const toggleAction = (opt) => {
+    const current = form.action_taken ? form.action_taken.split(',').map(s => s.trim()).filter(Boolean) : []
+    const next = current.includes(opt) ? current.filter(x => x !== opt) : [...current, opt]
+    set('action_taken', next.join(', '))
+  }
+  const actionSelected = form.action_taken ? form.action_taken.split(',').map(s => s.trim()).filter(Boolean) : []
 
   const handleSave = async () => {
     if (!form.name.trim()) return
@@ -179,10 +192,14 @@ function NewDealForm({ defaultStage = 'New', onClose, onSave }) {
     setSaving(false)
   }
 
+  const assignOptions = users.map(u => u.name).filter(Boolean)
+
   return (
     <>
       <div className="modal-body">
-        {error && <div style={{ background: 'var(--red-bg)', border: '.5px solid var(--red-b)', borderRadius: '6px', padding: '.625rem .875rem', marginBottom: '.75rem', fontSize: '.76rem', color: 'var(--red)' }}>{error}</div>}
+        {error && <div style={{ background: 'var(--red-bg)', border: '.5px solid var(--red-b)', borderRadius: '6px', padding: '.625rem .875rem', fontSize: '.76rem', color: 'var(--red)' }}>{error}</div>}
+
+        <div style={{ fontSize: '.56rem', letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--muted)', fontWeight: 600, marginBottom: '.5rem' }}>Contact details</div>
         <div className="g2">
           <div className="form-group"><label className="form-label">Name *</label><input className="form-input" value={form.name} onChange={e => set('name', e.target.value)} autoFocus placeholder="Contact or business name" /></div>
           <div className="form-group"><label className="form-label">Company</label><input className="form-input" value={form.company} onChange={e => set('company', e.target.value)} /></div>
@@ -195,11 +212,39 @@ function NewDealForm({ defaultStage = 'New', onClose, onSave }) {
           <div className="form-group"><label className="form-label">Role / title</label><input className="form-input" value={form.contact_role} onChange={e => set('contact_role', e.target.value)} /></div>
           <div className="form-group"><label className="form-label">Industry</label><input className="form-input" value={form.industry} onChange={e => set('industry', e.target.value)} /></div>
         </div>
+
+        <div className="divider" />
+        <div style={{ fontSize: '.56rem', letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--muted)', fontWeight: 600, marginBottom: '.5rem' }}>Pipeline</div>
         <div className="g2">
           <div className="form-group"><label className="form-label">Stage</label><select className="form-select" value={form.stage} onChange={e => set('stage', e.target.value)}>{SALES_STAGES.map(s => <option key={s}>{s}</option>)}</select></div>
           <div className="form-group"><label className="form-label">Lead source</label><input className="form-input" value={form.connector_name} onChange={e => set('connector_name', e.target.value)} placeholder="e.g. Lads Who Lunch" /></div>
         </div>
-        <div className="form-group"><label className="form-label">Action taken</label><input className="form-input" value={form.action_taken} onChange={e => set('action_taken', e.target.value)} placeholder="e.g. Emailed, Called" /></div>
+        <div className="g2">
+          <div className="form-group"><label className="form-label">Date contacted</label><input className="form-input" type="date" value={form.date_contacted} onChange={e => set('date_contacted', e.target.value)} /></div>
+          {assignOptions.length > 0 && (
+            <div className="form-group"><label className="form-label">Assigned to</label><select className="form-select" value={form.assigned_to} onChange={e => set('assigned_to', e.target.value)}><option value="">—</option>{assignOptions.map(n => <option key={n}>{n}</option>)}</select></div>
+          )}
+        </div>
+
+        <div className="divider" />
+        <div style={{ fontSize: '.56rem', letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--muted)', fontWeight: 600, marginBottom: '.5rem' }}>Action taken</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.35rem' }}>
+          {ACTION_TAKEN_OPTIONS.map(opt => (
+            <button key={opt} type="button" onClick={() => toggleAction(opt)} style={{ padding: '.2rem .55rem', borderRadius: '4px', fontSize: '.68rem', cursor: 'pointer', background: actionSelected.includes(opt) ? 'var(--dark)' : 'transparent', color: actionSelected.includes(opt) ? 'var(--bg)' : 'var(--muted)', border: `.5px solid ${actionSelected.includes(opt) ? 'var(--dark)' : 'var(--border)'}` }}>
+              {opt}
+            </button>
+          ))}
+        </div>
+
+        <div className="divider" />
+        <div style={{ fontSize: '.56rem', letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--muted)', fontWeight: 600, marginBottom: '.5rem' }}>Next action</div>
+        <div className="g2">
+          <div className="form-group"><label className="form-label">Next action to take</label><select className="form-select" value={form.next_action_to_take} onChange={e => set('next_action_to_take', e.target.value)}><option value="">—</option>{NEXT_ACTION_OPTIONS.map(o => <option key={o}>{o}</option>)}</select></div>
+          <div className="form-group"><label className="form-label">Due date</label><input className="form-input" type="date" value={form.next_action_date} onChange={e => set('next_action_date', e.target.value)} /></div>
+        </div>
+        <div className="form-group"><label className="form-label">Next action details</label><input className="form-input" value={form.next_action} onChange={e => set('next_action', e.target.value)} placeholder="e.g. Send proposal draft" /></div>
+
+        <div className="divider" />
         <div className="form-group"><label className="form-label">Notes</label><textarea className="form-textarea" value={form.notes} onChange={e => set('notes', e.target.value)} /></div>
       </div>
       <div className="modal-foot">
