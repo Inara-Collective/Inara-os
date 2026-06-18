@@ -6,7 +6,6 @@ import Login from './pages/Login.jsx'
 import Home from './pages/Home.jsx'
 import Pipeline from './pages/Pipeline.jsx'
 import ClientDetail from './pages/ClientDetail.jsx'
-import ConnectorBoard from './pages/ConnectorBoard.jsx'
 import ClientsList from './pages/ClientsList.jsx'
 import SystemFlow from './pages/SystemFlow.jsx'
 import Delivery from './pages/Delivery.jsx'
@@ -110,7 +109,6 @@ export default function App() {
             <Route path="pipeline" element={<Pipeline />} />
             <Route path="pipeline/:id" element={<ClientDetail />} />
             <Route path="clients" element={<ClientsList />} />
-            <Route path="connectors" element={<RoleRoute allowedRoles={['admin','internal']}><ConnectorBoard /></RoleRoute>} />
             <Route path="my-board" element={<MyBoard />} />
             <Route path="team-board" element={<RoleRoute allowedRoles={['admin','internal']}><TeamBoard /></RoleRoute>} />
             <Route path="system" element={<SystemFlow />} />

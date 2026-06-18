@@ -3,19 +3,47 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../App.jsx'
 import { signOut } from '../../lib/supabase.js'
 
-const NAV = [
-  { to: '/', label: 'Dashboard', icon: '⬡', exact: true },
-  { to: '/pipeline', label: 'Pipeline', icon: '◈' },
-  { to: '/delivery', label: 'Delivery Board', icon: '▦' },
-  { to: '/modules', label: 'Module Library', icon: '◉' },
-  { to: '/reporting', label: 'Reporting', icon: '◎' },
-  { to: '/sops', label: 'SOP Library', icon: '☰' },
-  { to: '/outsource', label: 'Outsource Network', icon: '◌' },
-  { to: '/system', label: 'Full System Flow', icon: '→' },
+const NAV_SECTIONS = [
+  {
+    label: 'Command Centre',
+    items: [
+      { to: '/', label: 'Home', icon: '⬡', exact: true },
+      { to: '/my-board', label: 'My Board', icon: '◫' },
+    ],
+  },
+  {
+    label: 'Sales',
+    items: [
+      { to: '/pipeline', label: 'Pipeline', icon: '◈' },
+      { to: '/clients', label: 'Clients', icon: '◎' },
+    ],
+  },
+  {
+    label: 'Delivery',
+    items: [
+      { to: '/delivery', label: 'Delivery Board', icon: '▦' },
+      { to: '/team-board', label: 'Team Board', icon: '◉', roles: ['admin', 'internal'] },
+      { to: '/reporting', label: 'Reporting', icon: '◌', roles: ['admin', 'internal'] },
+    ],
+  },
+  {
+    label: 'Knowledge',
+    items: [
+      { to: '/sops', label: 'SOPs', icon: '☰' },
+      { to: '/outsource', label: 'Outsource Network', icon: '◇' },
+      { to: '/system', label: 'System Flow', icon: '→' },
+    ],
+  },
+  {
+    label: 'Admin',
+    items: [
+      { to: '/admin/users', label: 'Users & Roles', icon: '◑', roles: ['admin'] },
+    ],
+  },
 ]
 
 export default function Layout() {
-  const { session } = useAuth()
+  const { session, profile } = useAuth()
   const navigate = useNavigate()
   const email = session?.user?.email || ''
   const initials = email.slice(0, 2).toUpperCase()
@@ -25,6 +53,8 @@ export default function Layout() {
     navigate('/login')
   }
 
+  const canSee = (item) => !item.roles || item.roles.includes(profile?.role)
+
   return (
     <div className="app">
       <aside className="sidebar">
@@ -33,18 +63,26 @@ export default function Layout() {
           <div className="sb-tag">Ecosystem OS</div>
         </div>
         <nav className="sb-nav">
-          <div className="sb-section">Navigation</div>
-          {NAV.map(item => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.exact}
-              className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
-            >
-              <span style={{ fontSize: '1rem', lineHeight: 1 }}>{item.icon}</span>
-              {item.label}
-            </NavLink>
-          ))}
+          {NAV_SECTIONS.map(section => {
+            const visible = section.items.filter(canSee)
+            if (visible.length === 0) return null
+            return (
+              <div key={section.label}>
+                <div className="sb-section">{section.label}</div>
+                {visible.map(item => (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    end={item.exact}
+                    className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
+                  >
+                    <span style={{ fontSize: '1rem', lineHeight: 1 }}>{item.icon}</span>
+                    {item.label}
+                  </NavLink>
+                ))}
+              </div>
+            )
+          })}
         </nav>
         <div className="sb-footer">
           <div className="user-row">
