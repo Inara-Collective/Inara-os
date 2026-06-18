@@ -5,6 +5,7 @@ import { getClients, createClient_, PIPELINE_STAGES, SALES_STAGES } from '../lib
 const STAGE_COLOR = {
   'New': 'rgba(255,255,255,.35)',
   'Reached out': 'var(--blue)',
+  'To Action': 'var(--gold)',
   'Discovery': 'var(--purple)',
   'Negotiation': 'var(--amber)',
   'Won': 'var(--teal)',
@@ -75,7 +76,7 @@ function ClientCard({ client, onClick }) {
 export default function Pipeline() {
   const [clients, setClients] = useState([])
   const [loading, setLoading] = useState(true)
-  const [showNew, setShowNew] = useState(false)
+  const [showNew, setShowNew] = useState(null)
   const [search, setSearch] = useState('')
   const navigate = useNavigate()
 
@@ -106,7 +107,7 @@ export default function Pipeline() {
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
-          <button className="btn btn-primary" onClick={() => setShowNew(true)}>+ New deal</button>
+          <button className="btn btn-primary" onClick={() => setShowNew('New')}>+ New deal</button>
         </div>
       </div>
 
@@ -127,6 +128,12 @@ export default function Pipeline() {
                 {col.length === 0 && (
                   <div style={{ textAlign: 'center', padding: '1.5rem .5rem', color: 'var(--muted)', fontSize: '.72rem', border: '.5px dashed var(--border)', borderRadius: '8px' }}>Empty</div>
                 )}
+                <button
+                  onClick={() => setShowNew(stage)}
+                  style={{ width: '100%', background: 'none', border: '.5px dashed var(--border)', borderRadius: '6px', padding: '.4rem', color: 'var(--muted)', fontSize: '.7rem', cursor: 'pointer', marginTop: '.25rem' }}
+                >
+                  + Add
+                </button>
               </div>
             )
           })}
@@ -139,13 +146,13 @@ export default function Pipeline() {
       </div>
 
       {showNew && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowNew(false)}>
+        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowNew(null)}>
           <div className="modal" style={{ maxWidth: 560 }}>
             <div className="modal-head">
               <div className="modal-title">New Deal</div>
-              <button className="btn btn-ghost btn-sm" onClick={() => setShowNew(false)}>✕</button>
+              <button className="btn btn-ghost btn-sm" onClick={() => setShowNew(null)}>✕</button>
             </div>
-            <NewDealForm onClose={() => setShowNew(false)} onSave={handleNew} />
+            <NewDealForm defaultStage={showNew} onClose={() => setShowNew(null)} onSave={handleNew} />
           </div>
         </div>
       )}
@@ -153,8 +160,8 @@ export default function Pipeline() {
   )
 }
 
-function NewDealForm({ onClose, onSave }) {
-  const [form, setForm] = useState({ name: '', company: '', contact_email: '', phone: '', contact_role: '', industry: '', stage: 'New', connector_name: '', action_taken: '', notes: '' })
+function NewDealForm({ defaultStage = 'New', onClose, onSave }) {
+  const [form, setForm] = useState({ name: '', company: '', contact_email: '', phone: '', contact_role: '', industry: '', stage: defaultStage, connector_name: '', action_taken: '', notes: '' })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
