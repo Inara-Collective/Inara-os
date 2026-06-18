@@ -16,6 +16,7 @@ import MyBoard from './pages/MyBoard.jsx'
 import TeamBoard from './pages/TeamBoard.jsx'
 import AdminUsers from './pages/AdminUsers.jsx'
 import ClientPortal from './pages/ClientPortal.jsx'
+import ContentBoard from './pages/ContentBoard.jsx'
 
 export const AuthContext = createContext(null)
 export const useAuth = () => useContext(AuthContext)
@@ -113,6 +114,7 @@ export default function App() {
             <Route path="team-board" element={<RoleRoute allowedRoles={['admin','internal']}><TeamBoard /></RoleRoute>} />
             <Route path="system" element={<SystemFlow />} />
             <Route path="delivery" element={<Delivery />} />
+            <Route path="content-board" element={<RoleRoute allowedRoles={['admin','internal']}><ContentBoard /></RoleRoute>} />
             <Route path="reporting" element={<RoleRoute allowedRoles={['admin','internal']}><Reporting /></RoleRoute>} />
             <Route path="sops" element={<RoleRoute allowedRoles={['admin','internal']}><SOPs /></RoleRoute>} />
             <Route path="outsource" element={<RoleRoute allowedRoles={['admin','internal']}><Outsource /></RoleRoute>} />

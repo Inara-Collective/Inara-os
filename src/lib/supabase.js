@@ -181,6 +181,31 @@ export const updateUserRole = async (id, role) => {
   return data
 }
 
+export const getContentItems = async (clientId) => {
+  let q = supabase.from('content_items').select('*, clients(name)').order('created_at', { ascending: false })
+  if (clientId) q = q.eq('client_id', clientId)
+  const { data, error } = await q
+  if (error) throw error
+  return data || []
+}
+
+export const createContentItem = async (item) => {
+  const { data, error } = await supabase.from('content_items').insert([item]).select('*, clients(name)').single()
+  if (error) throw error
+  return data
+}
+
+export const updateContentItem = async (id, updates) => {
+  const { data, error } = await supabase.from('content_items').update(updates).eq('id', id).select('*, clients(name)').single()
+  if (error) throw error
+  return data
+}
+
+export const deleteContentItem = async (id) => {
+  const { error } = await supabase.from('content_items').delete().eq('id', id)
+  if (error) throw error
+}
+
 export const PIPELINE_STAGES = [
   'Find','Score','Call 1 — Qualify','Call 2 — Intro',
   'Handover','Discovery Call','Diagnosis','Proposal Sent',
@@ -193,6 +218,10 @@ export const LEAK_STAGES = ['A — Before awareness','B — After enquiry','C �
 export const PACKAGES = ['Stage 1 — Clarity','Stage 2 — Structure','Stage 3 — Growth Partner','Dial an Inara']
 export const TASK_STATUSES = ['To Do','In Progress','Awaiting Approval','Blocked','Complete']
 export const TASK_OWNERS = ['Maxine','Team','Videographer','Photographer','Graphic Designer','Copywriter','Web Developer','Automation Specialist','Client']
+export const CONTENT_STATUSES = ['Ideas','Strategy Approved','Writing / Drafting','Design / Editing','Internal Review','Ready for Client Review','Sent to Client','Client Feedback Received','Approved','Scheduled','Posted / Sent / Live','Reported']
+export const CONTENT_PLATFORMS = ['Instagram','Facebook','LinkedIn','TikTok','YouTube','Email','Website','Blog','Other']
+export const CONTENT_TYPES = ['Reel','Carousel','Static Post','Story','Video','Email','Blog Post','Website Copy','Ad','Other']
+export const CONTENT_PILLARS = ['Education','Inspiration','Promotion','Connection','Authority','Entertainment','Conversion']
 export const SOP_CATEGORIES = ['Content','Systems','Client Management','Sales','Reporting','Training','Outsource']
 export const OUTSOURCE_ROLES = ['Videographer','Photographer','Graphic Designer','Copywriter','Web Developer','Automation Specialist','Paid Ads Specialist','Events Planner','PR Company','Sales / SDR','CRM Specialist','Data Analyst','SEO Specialist','MC / Facilitator']
 export const ALL_MODULES = ['Brand Positioning & Messaging','Customer Journey Mapping','Content Strategy & Direction','Social Media Systems','Short-Form Video','Website Optimisation','Email Marketing','Lead Generation & Funnels','Photography & Visual Identity','CRM & Automation','Reporting & Analytics','Campaign Planning & Execution','Paid Ads','Event Marketing','SEO & Discoverability','Community & Engagement','Sales Enablement Content','Team Training & Enablement','PR & Earned Media','Partnership & Referral Systems','Long-Form Content','On-Camera Coaching & Presence']

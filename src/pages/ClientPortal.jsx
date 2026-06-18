@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useAuth } from '../App.jsx'
-import { supabase, signOut } from '../lib/supabase.js'
+import { supabase, signOut, getContentItems, updateContentItem } from '../lib/supabase.js'
 
 const STATUS_COLOR = { 'To Do': 'var(--blue)', 'In Progress': 'var(--amber)', 'Awaiting Approval': 'var(--purple)', 'Blocked': 'var(--red)', 'Complete': 'var(--teal)' }
 const STATUS_LABEL = { 'To Do': 'To do', 'In Progress': 'In progress', 'Awaiting Approval': 'Awaiting your approval', 'Blocked': 'Blocked', 'Complete': 'Done' }
@@ -8,8 +8,11 @@ const STATUS_LABEL = { 'To Do': 'To do', 'In Progress': 'In progress', 'Awaiting
 export default function ClientPortal() {
   const { session, profile } = useAuth()
   const [tasks, setTasks] = useState([])
+  const [contentItems, setContentItems] = useState([])
   const [client, setClient] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [feedbackItem, setFeedbackItem] = useState(null)
+  const [feedbackText, setFeedbackText] = useState('')
 
   useEffect(() => {
     const load = async () => {
@@ -28,6 +31,8 @@ export default function ClientPortal() {
             .eq('client_id', clientData.id)
             .order('due_date')
           setTasks(taskData || [])
+          const content = await getContentItems(clientData.id)
+          setContentItems(content)
         }
       } catch (e) {
         console.error(e)
@@ -39,6 +44,19 @@ export default function ClientPortal() {
   }, [session])
 
   const handleSignOut = () => signOut()
+
+  const handleApprove = async (id) => {
+    const u = await updateContentItem(id, { status: 'Approved', client_approval_status: 'Approved' })
+    setContentItems(p => p.map(i => i.id === id ? u : i))
+  }
+
+  const handleRequestChanges = async (id) => {
+    if (!feedbackText.trim()) return
+    const u = await updateContentItem(id, { status: 'Client Feedback Received', client_approval_status: 'Changes Requested', client_comments: feedbackText })
+    setContentItems(p => p.map(i => i.id === id ? u : i))
+    setFeedbackItem(null)
+    setFeedbackText('')
+  }
 
   if (loading) return (
     <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1A1816' }}>
@@ -52,6 +70,7 @@ export default function ClientPortal() {
   const open = tasks.filter(t => t.status !== 'Complete')
   const done = tasks.filter(t => t.status === 'Complete')
   const awaitingApproval = tasks.filter(t => t.status === 'Awaiting Approval')
+  const contentForReview = contentItems.filter(i => ['Ready for Client Review', 'Sent to Client'].includes(i.status))
 
   return (
     <div style={{ minHeight: '100vh', background: '#1A1816', color: '#E8E0D5' }}>
@@ -81,6 +100,75 @@ export default function ClientPortal() {
                   <div key={t.id} style={{ background: 'rgba(255,255,255,.04)', border: '.5px solid rgba(255,255,255,.1)', borderRadius: '6px', padding: '.65rem .875rem', marginBottom: '.4rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ fontSize: '.8rem', fontWeight: 500 }}>{t.name}</div>
                     {t.due_date && <span style={{ fontSize: '.68rem', color: 'rgba(255,255,255,.4)' }}>Due {new Date(t.due_date).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })}</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {contentForReview.length > 0 && (
+              <div style={{ marginBottom: '2rem' }}>
+                <div style={{ fontSize: '.6rem', letterSpacing: '.18em', textTransform: 'uppercase', color: '#B8956A', fontWeight: 500, marginBottom: '.875rem' }}>
+                  Content for review — {contentForReview.length} piece{contentForReview.length > 1 ? 's' : ''}
+                </div>
+                {contentForReview.map(item => (
+                  <div key={item.id} style={{ background: 'rgba(255,255,255,.03)', border: '.5px solid rgba(255,255,255,.1)', borderRadius: '10px', marginBottom: '.75rem', overflow: 'hidden', borderLeft: '2px solid #B8956A' }}>
+                    <div style={{ padding: '.875rem 1.1rem' }}>
+                      <div style={{ fontSize: '.85rem', fontWeight: 500, marginBottom: '.3rem' }}>{item.title}</div>
+                      <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', marginBottom: '.75rem' }}>
+                        {item.platform && <span style={{ fontSize: '.65rem', color: 'rgba(255,255,255,.45)', background: 'rgba(255,255,255,.06)', border: '.5px solid rgba(255,255,255,.1)', borderRadius: '4px', padding: '.15rem .5rem' }}>{item.platform}</span>}
+                        {item.content_type && <span style={{ fontSize: '.65rem', color: 'rgba(255,255,255,.45)', background: 'rgba(255,255,255,.06)', border: '.5px solid rgba(255,255,255,.1)', borderRadius: '4px', padding: '.15rem .5rem' }}>{item.content_type}</span>}
+                        {item.publish_date && <span style={{ fontSize: '.65rem', color: 'rgba(255,255,255,.35)' }}>Publish {new Date(item.publish_date).toLocaleDateString('en-NZ', { day: 'numeric', month: 'long' })}</span>}
+                      </div>
+                      {item.caption && (
+                        <div style={{ fontSize: '.76rem', color: 'rgba(255,255,255,.5)', lineHeight: 1.55, marginBottom: '.75rem', padding: '.625rem .75rem', background: 'rgba(255,255,255,.03)', borderRadius: '6px', border: '.5px solid rgba(255,255,255,.06)' }}>
+                          {item.caption}
+                        </div>
+                      )}
+                      {item.canva_link && (
+                        <div style={{ marginBottom: '.75rem' }}>
+                          <a href={item.canva_link} target="_blank" rel="noreferrer" style={{ fontSize: '.7rem', color: '#B8956A', textDecoration: 'none' }}>
+                            View design →
+                          </a>
+                        </div>
+                      )}
+                      {feedbackItem === item.id ? (
+                        <div>
+                          <textarea
+                            value={feedbackText}
+                            onChange={e => setFeedbackText(e.target.value)}
+                            placeholder="Describe what you'd like changed..."
+                            style={{ width: '100%', background: 'rgba(255,255,255,.04)', border: '.5px solid rgba(255,255,255,.15)', borderRadius: '6px', color: '#E8E0D5', fontSize: '.78rem', padding: '.625rem .75rem', minHeight: 80, resize: 'vertical', boxSizing: 'border-box', fontFamily: 'inherit', lineHeight: 1.5, marginBottom: '.5rem' }}
+                          />
+                          <div style={{ display: 'flex', gap: '.5rem' }}>
+                            <button
+                              onClick={() => handleRequestChanges(item.id)}
+                              disabled={!feedbackText.trim()}
+                              style={{ background: 'rgba(220,53,69,.15)', border: '.5px solid rgba(220,53,69,.4)', color: '#dc3545', fontSize: '.72rem', cursor: feedbackText.trim() ? 'pointer' : 'default', padding: '.4rem 1rem', borderRadius: '6px', opacity: feedbackText.trim() ? 1 : .5 }}
+                            >
+                              Send feedback
+                            </button>
+                            <button onClick={() => { setFeedbackItem(null); setFeedbackText('') }} style={{ background: 'none', border: '.5px solid rgba(255,255,255,.12)', color: 'rgba(255,255,255,.4)', fontSize: '.72rem', cursor: 'pointer', padding: '.4rem .875rem', borderRadius: '6px' }}>
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', gap: '.5rem' }}>
+                          <button
+                            onClick={() => handleApprove(item.id)}
+                            style={{ background: 'rgba(76,175,138,.12)', border: '.5px solid rgba(76,175,138,.35)', color: '#4CAF8A', fontSize: '.75rem', cursor: 'pointer', padding: '.45rem 1.25rem', borderRadius: '6px', fontWeight: 500 }}
+                          >
+                            ✓ Approve
+                          </button>
+                          <button
+                            onClick={() => { setFeedbackItem(item.id); setFeedbackText('') }}
+                            style={{ background: 'rgba(255,255,255,.04)', border: '.5px solid rgba(255,255,255,.12)', color: 'rgba(255,255,255,.5)', fontSize: '.75rem', cursor: 'pointer', padding: '.45rem 1.25rem', borderRadius: '6px' }}
+                          >
+                            Request changes
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
