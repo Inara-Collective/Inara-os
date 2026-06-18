@@ -130,6 +130,11 @@ export default function Pipeline() {
               </div>
             )
           })}
+          <div style={{ width: 200, flexShrink: 0, paddingTop: '.1rem' }}>
+            <button style={{ width: '100%', background: 'none', border: '.5px dashed var(--border)', borderRadius: '6px', padding: '.35rem .6rem', color: 'var(--muted)', fontSize: '.68rem', cursor: 'pointer', textAlign: 'left' }}>
+              + New group
+            </button>
+          </div>
         </div>
       </div>
 
