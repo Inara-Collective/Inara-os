@@ -28,7 +28,7 @@ html,body,#root{height:100%;font-family:'DM Sans',sans-serif;background:var(--bg
 .sb-footer{padding:.875rem 1.25rem;border-top:1px solid rgba(255,255,255,.07);font-size:.7rem;color:rgba(255,255,255,.25)}
 .user-row{display:flex;align-items:center;gap:.5rem}
 .user-av{width:26px;height:26px;border-radius:6px;background:rgba(184,149,106,.2);display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:500;color:var(--gold);flex-shrink:0}
-.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.main{flex:1;display:flex;flex-direction:column;overflow-y:hidden;overflow-x:auto}
 .topbar{height:56px;background:var(--warm);border-bottom:.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 1.75rem;flex-shrink:0}
 .topbar-title{font-family:'Cormorant Garamond',serif;font-size:1.3rem;font-weight:400}
 .topbar-actions{display:flex;align-items:center;gap:.625rem}

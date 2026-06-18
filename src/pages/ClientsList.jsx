@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { getClients } from '../lib/supabase.js'
 
 const ACTIVE_STAGES = ['Onboarding','Stage 1 — Clarity','Stage 2 — Structure','Stage 3 — Growth Partner','Dial an Inara']
-const PROSPECT_STAGES = ['Find','Score','Call 1 — Qualify','Call 2 — Intro','Handover','Discovery Call','Diagnosis','Proposal Sent','Sales Call']
+const PROSPECT_STAGES = ['New','Reached out','Discovery','Negotiation','Won','Lost','No Deal stage']
 const HEALTH_COLOR = { '🟢 Strong': 'var(--teal)', '🟡 Building': 'var(--amber)', '🔴 Needs attention': 'var(--red)' }
 
 const TABS = ['Active', 'Prospects', 'All']

@@ -175,6 +175,30 @@ export const getUsers = async () => {
   return data || []
 }
 
+export const getClientComments = async (clientId) => {
+  const { data, error } = await supabase.from('client_comments').select('*').eq('client_id', clientId).order('created_at')
+  if (error) throw error
+  return data || []
+}
+
+export const createClientComment = async (comment) => {
+  const { data, error } = await supabase.from('client_comments').insert([comment]).select().single()
+  if (error) throw error
+  return data
+}
+
+export const getClientEmails = async (clientId) => {
+  const { data, error } = await supabase.from('client_emails').select('*').eq('client_id', clientId).order('sent_at', { ascending: false })
+  if (error) throw error
+  return data || []
+}
+
+export const createClientEmail = async (email) => {
+  const { data, error } = await supabase.from('client_emails').insert([email]).select().single()
+  if (error) throw error
+  return data
+}
+
 export const updateUserRole = async (id, role) => {
   const { data, error } = await supabase.from('user_profiles').update({ role }).eq('id', id).select().single()
   if (error) throw error
@@ -206,10 +230,11 @@ export const deleteContentItem = async (id) => {
   if (error) throw error
 }
 
+export const ACTION_TAKEN_OPTIONS = ['Emailed','Called',"DM'd",'Met in person','Sent proposal','Sent invoice','Sent contract','Left voicemail','Sent follow-up','Made intro']
+export const NEXT_ACTION_OPTIONS = ['Send email','Make call','Send proposal','Follow up','Schedule meeting','Book discovery call','Send contract','Send invoice','Await response','No action needed']
+export const SALES_STAGES = ['New','Reached out','To Action','Discovery','Negotiation','Won','Lost','No Deal stage']
 export const PIPELINE_STAGES = [
-  'Find','Score','Call 1 — Qualify','Call 2 — Intro',
-  'Handover','Discovery Call','Diagnosis','Proposal Sent',
-  'Sales Call','Closed — Won','Closed — Lost',
+  ...SALES_STAGES,
   'Onboarding','Stage 1 — Clarity','Stage 2 — Structure',
   'Stage 3 — Growth Partner','Dial an Inara','Alumni'
 ]
