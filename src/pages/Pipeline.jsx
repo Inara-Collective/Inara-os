@@ -118,22 +118,22 @@ export default function Pipeline() {
             const color = STAGE_COLOR[stage]
             return (
               <div key={stage} style={{ width: 240, flexShrink: 0 }}>
-                <div style={{ fontSize: '.58rem', letterSpacing: '.14em', textTransform: 'uppercase', color, fontWeight: 600, marginBottom: '.75rem', padding: '.35rem .6rem', background: 'var(--warm)', border: '.5px solid var(--border)', borderRadius: '6px', borderBottom: `2px solid ${color}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ fontSize: '.58rem', letterSpacing: '.14em', textTransform: 'uppercase', color, fontWeight: 600, marginBottom: '.5rem', padding: '.35rem .6rem', background: 'var(--warm)', border: '.5px solid var(--border)', borderRadius: '6px', borderBottom: `2px solid ${color}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span>{stage}</span>
                   <span style={{ color: 'var(--muted)', fontWeight: 400 }}>{col.length}</span>
                 </div>
+                <button
+                  onClick={() => setShowNew(stage)}
+                  style={{ width: '100%', background: 'none', border: '.5px dashed var(--border)', borderRadius: '6px', padding: '.4rem', color: 'var(--muted)', fontSize: '.7rem', cursor: 'pointer', marginBottom: '.5rem' }}
+                >
+                  + Add
+                </button>
                 {col.map(c => (
                   <ClientCard key={c.id} client={c} onClick={() => navigate(`/pipeline/${c.id}`)} />
                 ))}
                 {col.length === 0 && (
                   <div style={{ textAlign: 'center', padding: '1.5rem .5rem', color: 'var(--muted)', fontSize: '.72rem', border: '.5px dashed var(--border)', borderRadius: '8px' }}>Empty</div>
                 )}
-                <button
-                  onClick={() => setShowNew(stage)}
-                  style={{ width: '100%', background: 'none', border: '.5px dashed var(--border)', borderRadius: '6px', padding: '.4rem', color: 'var(--muted)', fontSize: '.7rem', cursor: 'pointer', marginTop: '.25rem' }}
-                >
-                  + Add
-                </button>
               </div>
             )
           })}
