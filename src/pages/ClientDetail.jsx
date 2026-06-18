@@ -8,7 +8,7 @@ import {
   getClientComments, createClientComment,
   getClientEmails, createClientEmail,
   getUsers,
-  PIPELINE_STAGES, HEALTH_OPTIONS, LEAK_STAGES, PACKAGES,
+  PIPELINE_STAGES, SALES_STAGES, HEALTH_OPTIONS, LEAK_STAGES, PACKAGES,
   TASK_STATUSES, TASK_OWNERS, ALL_MODULES, MUST_MODULES,
   ACTION_TAKEN_OPTIONS, NEXT_ACTION_OPTIONS
 } from '../lib/supabase.js'
@@ -110,6 +110,10 @@ export default function ClientDetail() {
   const [emailForm, setEmailForm] = useState({ subject:'', body:'', to_email:'', from_email:'' })
   const [savingEmail, setSavingEmail] = useState(false)
 
+  const [showConvert, setShowConvert] = useState(false)
+  const [convertForm, setConvertForm] = useState({ stage: 'Onboarding', mrr: '', recommended_package: '' })
+  const [converting, setConverting] = useState(false)
+
   useEffect(() => {
     getClient(id)
       .then(d => { setClient(d); setModules(d?.client_modules||[]); setTasks(d?.tasks||[]) })
@@ -169,6 +173,20 @@ export default function ClientDetail() {
     setSubmittingComment(false)
   }
 
+  const handleConvert = async () => {
+    if (converting) return
+    setConverting(true)
+    try {
+      const updates = { stage: convertForm.stage }
+      if (convertForm.mrr) updates.mrr = Number(convertForm.mrr)
+      if (convertForm.recommended_package) updates.recommended_package = convertForm.recommended_package
+      const u = await updateClient(id, updates)
+      setClient(u)
+      setShowConvert(false)
+    } catch (e) { console.error(e) }
+    setConverting(false)
+  }
+
   const saveEmail = async () => {
     if ((!emailForm.subject.trim() && !emailForm.body.trim()) || savingEmail) return
     setSavingEmail(true)
@@ -189,6 +207,8 @@ export default function ClientDetail() {
   const mentionUsers = mentionSearch !== null
     ? users.filter(u => u.name?.toLowerCase().startsWith(mentionSearch.toLowerCase()))
     : []
+  const isLead = SALES_STAGES.includes(client.stage)
+  const CLIENT_STAGES = PIPELINE_STAGES.filter(s => !SALES_STAGES.includes(s))
 
   return (
     <div>
@@ -198,7 +218,14 @@ export default function ClientDetail() {
           <div style={{ fontFamily:'Cormorant Garamond, Georgia, serif', fontSize:'1.3rem' }}>{client.name}</div>
           <span className="badge badge-gold">{client.stage}</span>
         </div>
-        <div style={{ fontSize:'.72rem', color:'var(--muted)' }}>{client.industry}</div>
+        <div style={{ display:'flex', alignItems:'center', gap:'.75rem' }}>
+          {isLead && (
+            <button className="btn btn-gold" onClick={() => { setConvertForm({ stage:'Onboarding', mrr: client.mrr?.toString()||'', recommended_package: client.recommended_package||'' }); setShowConvert(true) }}>
+              Convert to client →
+            </button>
+          )}
+          <div style={{ fontSize:'.72rem', color:'var(--muted)' }}>{client.industry}</div>
+        </div>
       </div>
 
       <div style={{ display:'flex', borderBottom:'.5px solid var(--border)', padding:'0 1.75rem', background:'var(--warm)' }}>
@@ -455,6 +482,46 @@ export default function ClientDetail() {
         )}
 
       </div>
+
+      {showConvert && (
+        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowConvert(false)}>
+          <div className="modal" style={{ maxWidth: 480 }}>
+            <div className="modal-head">
+              <div className="modal-title">Convert to Client</div>
+              <button className="btn btn-ghost btn-sm" onClick={() => setShowConvert(false)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <div style={{ background: 'var(--teal-bg)', border: '.5px solid var(--teal-b)', borderRadius: '8px', padding: '.875rem 1rem', fontSize: '.78rem', color: 'var(--teal)', lineHeight: 1.6 }}>
+                Converting <strong>{client.name}</strong> will move them out of the pipeline and into active client delivery.
+              </div>
+              <div className="form-group">
+                <label className="form-label">Starting stage</label>
+                <select className="form-select" value={convertForm.stage} onChange={e => setConvertForm(f => ({ ...f, stage: e.target.value }))}>
+                  {CLIENT_STAGES.map(s => <option key={s}>{s}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Package</label>
+                <select className="form-select" value={convertForm.recommended_package} onChange={e => setConvertForm(f => ({ ...f, recommended_package: e.target.value }))}>
+                  <option value="">— Select package —</option>
+                  {PACKAGES.map(p => <option key={p}>{p}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Monthly retainer (MRR)</label>
+                <input className="form-input" type="number" placeholder="e.g. 3500" value={convertForm.mrr} onChange={e => setConvertForm(f => ({ ...f, mrr: e.target.value }))} />
+              </div>
+            </div>
+            <div className="modal-foot">
+              <button className="btn btn-ghost" onClick={() => setShowConvert(false)}>Cancel</button>
+              <button className="btn btn-gold" onClick={handleConvert} disabled={converting}>
+                {converting ? 'Converting...' : 'Confirm conversion →'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }
