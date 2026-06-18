@@ -3,14 +3,14 @@ import { useNavigate } from 'react-router-dom'
 import { getClients, createClient_, PIPELINE_STAGES, SALES_STAGES } from '../lib/supabase.js'
 
 const STAGE_COLOR = {
-  'New': 'rgba(255,255,255,.35)',
+  'New': 'var(--muted)',
   'Reached out': 'var(--blue)',
   'To Action': 'var(--gold)',
   'Discovery': 'var(--purple)',
   'Negotiation': 'var(--amber)',
   'Won': 'var(--teal)',
   'Lost': 'var(--red)',
-  'No Deal stage': 'rgba(255,255,255,.2)',
+  'No Deal stage': 'var(--muted)',
 }
 
 const SOURCE_PALETTE = ['#B8956A','#4A90B8','#4CAF8A','#8B5CBE','#E87F4A','#D4A843','#E06B8B']
@@ -111,7 +111,7 @@ export default function Pipeline() {
         </div>
       </div>
 
-      <div className="page" style={{ overflowX: 'auto', paddingBottom: '2rem' }}>
+      <div style={{ overflowX: 'auto', padding: '1.5rem 2rem 2rem', flex: 1 }}>
         <div style={{ display: 'flex', gap: '1rem', minWidth: 'max-content', alignItems: 'start' }}>
           {SALES_STAGES.map(stage => {
             const col = filtered.filter(c => c.stage === stage)
