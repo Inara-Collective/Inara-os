@@ -22,6 +22,7 @@ const NAV_SECTIONS = [
     label: 'Delivery',
     items: [
       { to: '/delivery', label: 'Delivery Board', icon: '▦' },
+      { to: '/content-board', label: 'Content Board', icon: '◈', roles: ['admin', 'internal'] },
       { to: '/team-board', label: 'Team Board', icon: '◉', roles: ['admin', 'internal'] },
       { to: '/reporting', label: 'Reporting', icon: '◌', roles: ['admin', 'internal'] },
     ],
