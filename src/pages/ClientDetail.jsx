@@ -10,9 +10,33 @@ import {
   getUsers,
   PIPELINE_STAGES, SALES_STAGES, HEALTH_OPTIONS, LEAK_STAGES, PACKAGES,
   TASK_STATUSES, TASK_OWNERS, ALL_MODULES, MUST_MODULES,
-  ACTION_TAKEN_OPTIONS, NEXT_ACTION_OPTIONS
+  ACTION_TAKEN_OPTIONS, NEXT_ACTION_OPTIONS,
+  OPPORTUNITY_TAGS, RELATIONSHIP_ACTIONS, CONNECTION_STRENGTHS, DIAG_AREAS, STAGE_TASK_FLOWS
 } from '../lib/supabase.js'
 
+/* ── helpers ── */
+function fmtDate(str) {
+  if (!str) return ''
+  return new Date(str).toLocaleString('en-NZ', { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })
+}
+
+function renderWithMentions(text) {
+  return text.split(/(@\S+)/g).map((part, i) =>
+    part.startsWith('@')
+      ? <mark key={i} style={{ background:'var(--gold-bg)', color:'var(--amber)', borderRadius:'3px', padding:'0 .2rem', fontWeight:500 }}>{part}</mark>
+      : part
+  )
+}
+
+function diagColor(score) {
+  if (!score) return 'var(--border)'
+  if (score <= 1) return 'var(--red)'
+  if (score <= 2) return 'var(--amber)'
+  if (score <= 3) return 'var(--gold)'
+  return 'var(--teal)'
+}
+
+/* ── Field: inline click-to-edit ── */
 function Field({ label, value, type, options, onSave }) {
   const [editing, setEditing] = useState(false)
   const [val, setVal] = useState(value || '')
@@ -40,6 +64,7 @@ function Field({ label, value, type, options, onSave }) {
   )
 }
 
+/* ── MultiCheckField: toggling chip group ── */
 function MultiCheckField({ label, value, options, onSave }) {
   const [editing, setEditing] = useState(false)
   const current = value ? value.split(',').map(s => s.trim()).filter(Boolean) : []
@@ -73,19 +98,29 @@ function MultiCheckField({ label, value, options, onSave }) {
   )
 }
 
-function renderWithMentions(text) {
-  return text.split(/(@\S+)/g).map((part, i) =>
-    part.startsWith('@')
-      ? <mark key={i} style={{ background:'var(--gold-bg)', color:'var(--amber)', borderRadius:'3px', padding:'0 .2rem', fontWeight:500 }}>{part}</mark>
-      : part
+/* ── DiagRow: 1–5 segment scorer ── */
+function DiagRow({ area, value, onSave }) {
+  const col = diagColor(value)
+  return (
+    <div style={{ background:'var(--warm)', border:'.5px solid var(--border)', borderRadius:'8px', padding:'.75rem 1rem', borderLeft:`3px solid ${col}` }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'.5rem' }}>
+        <span style={{ fontSize:'.72rem', fontWeight:500, color:'var(--dark)' }}>{area.label}</span>
+        <span style={{ fontSize:'.68rem', color:col, fontWeight:600 }}>{value ? `${value}/5` : '—'}</span>
+      </div>
+      <div style={{ display:'flex', gap:'.25rem' }}>
+        {[1,2,3,4,5].map(n => (
+          <button key={n} onClick={() => onSave(area.key, n === value ? null : n)} style={{ flex:1, height:8, border:'none', borderRadius:'2px', cursor:'pointer', background: n <= (value||0) ? col : 'var(--border)', transition:'all .12s' }} />
+        ))}
+      </div>
+      <div style={{ display:'flex', justifyContent:'space-between', marginTop:'.25rem' }}>
+        <span style={{ fontSize:'.54rem', color:'var(--muted)' }}>Not clear / missing</span>
+        <span style={{ fontSize:'.54rem', color:'var(--muted)' }}>Excellent / ready to scale</span>
+      </div>
+    </div>
   )
 }
 
-function fmtDate(str) {
-  if (!str) return ''
-  return new Date(str).toLocaleString('en-NZ', { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })
-}
-
+/* ── Main component ── */
 export default function ClientDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -111,8 +146,11 @@ export default function ClientDetail() {
   const [savingEmail, setSavingEmail] = useState(false)
 
   const [showConvert, setShowConvert] = useState(false)
-  const [convertForm, setConvertForm] = useState({ stage: 'Onboarding', mrr: '', recommended_package: '' })
+  const [convertForm, setConvertForm] = useState({ stage:'Onboarding', mrr:'', recommended_package:'' })
   const [converting, setConverting] = useState(false)
+
+  const [taskFlow, setTaskFlow] = useState('')
+  const [addingFlow, setAddingFlow] = useState(false)
 
   useEffect(() => {
     getClient(id)
@@ -127,13 +165,33 @@ export default function ClientDetail() {
     if (tab === 'emails') getClientEmails(id).then(setEmails).catch(() => {})
   }, [tab, id])
 
-  const upd = async (field, value) => { const u = await updateClient(id, {[field]:value}); setClient(u) }
+  const upd = async (field, value) => {
+    setClient(c => ({ ...c, [field]: value }))
+    try { const u = await updateClient(id, { [field]: value }); setClient(u) } catch (e) { console.error(e) }
+  }
+
+  const updDiag = async (key, value) => {
+    setClient(c => ({ ...c, [key]: value }))
+    try { await updateClient(id, { [key]: value }) } catch (e) { console.error(e) }
+  }
+
   const addMod = async (name, priority) => { const m = await addClientModule({client_id:id,module_name:name,priority,status:'Active'}); setModules(p=>[...p,m]); setShowModAdd(false) }
   const togMod = async (m) => { const u = await updateClientModule(m.id,{status:m.status==='Active'?'Paused':'Active'}); setModules(p=>p.map(x=>x.id===m.id?u:x)) }
   const delMod = async (mid) => { await deleteClientModule(mid); setModules(p=>p.filter(m=>m.id!==mid)) }
   const addTsk = async () => { const t = await createTask({client_id:id,name:'New task',status:'To Do'}); setTasks(p=>[...p,t]) }
   const updTsk = async (tid,field,value) => { const u = await updateTask(tid,{[field]:value}); setTasks(p=>p.map(t=>t.id===tid?u:t)) }
   const delTsk = async (tid) => { await deleteTask(tid); setTasks(p=>p.filter(t=>t.id!==tid)) }
+
+  const applyTaskFlow = async () => {
+    if (!taskFlow || addingFlow) return
+    setAddingFlow(true)
+    for (const name of STAGE_TASK_FLOWS[taskFlow] || []) {
+      const t = await createTask({ client_id: id, name, status: 'To Do' })
+      setTasks(p => [...p, t])
+    }
+    setTaskFlow('')
+    setAddingFlow(false)
+  }
 
   const handleCommentChange = (e) => {
     const val = e.target.value
@@ -160,17 +218,24 @@ export default function ClientDetail() {
     if (!commentText.trim() || submittingComment) return
     setSubmittingComment(true)
     try {
-      const c = await createClientComment({
-        client_id: id,
-        content: commentText.trim(),
-        author_name: profile?.name || profile?.email || 'Me',
-        author_id: profile?.id
-      })
+      const c = await createClientComment({ client_id:id, content:commentText.trim(), author_name:profile?.name||profile?.email||'Me', author_id:profile?.id })
       setComments(p => [...p, c])
       setCommentText('')
       setMentionSearch(null)
     } catch (e) { console.error(e) }
     setSubmittingComment(false)
+  }
+
+  const saveEmail = async () => {
+    if ((!emailForm.subject.trim() && !emailForm.body.trim()) || savingEmail) return
+    setSavingEmail(true)
+    try {
+      const e = await createClientEmail({ client_id:id, ...emailForm, logged_by:profile?.name||'Me', sent_at:new Date().toISOString() })
+      setEmails(p => [e, ...p])
+      setEmailForm({ subject:'', body:'', to_email:'', from_email:'' })
+      setShowEmailForm(false)
+    } catch (e) { console.error(e) }
+    setSavingEmail(false)
   }
 
   const handleConvert = async () => {
@@ -187,40 +252,39 @@ export default function ClientDetail() {
     setConverting(false)
   }
 
-  const saveEmail = async () => {
-    if ((!emailForm.subject.trim() && !emailForm.body.trim()) || savingEmail) return
-    setSavingEmail(true)
-    try {
-      const e = await createClientEmail({ client_id: id, ...emailForm, logged_by: profile?.name || 'Me', sent_at: new Date().toISOString() })
-      setEmails(p => [e, ...p])
-      setEmailForm({ subject:'', body:'', to_email:'', from_email:'' })
-      setShowEmailForm(false)
-    } catch (e) { console.error(e) }
-    setSavingEmail(false)
-  }
-
   if (loading) return <div className="page"><div className="loading"><div className="spinner"></div>Loading...</div></div>
   if (!client) return <div className="page"><div className="empty"><div className="empty-title">Client not found</div></div></div>
 
-  const TABS = ['overview','modules','tasks','notes','comments','emails']
+  const TABS = ['overview','modules','tasks','diagnosis','notes','comments','emails']
   const assignOptions = users.map(u => u.name).filter(Boolean)
-  const mentionUsers = mentionSearch !== null
-    ? users.filter(u => u.name?.toLowerCase().startsWith(mentionSearch.toLowerCase()))
-    : []
+  const mentionUsers = mentionSearch !== null ? users.filter(u => u.name?.toLowerCase().startsWith(mentionSearch.toLowerCase())) : []
   const isLead = SALES_STAGES.includes(client.stage)
   const CLIENT_STAGES = PIPELINE_STAGES.filter(s => !SALES_STAGES.includes(s))
 
+  const diagScores = DIAG_AREAS.map(a => client[a.key] || 0)
+  const diagTotal = diagScores.reduce((s, v) => s + v, 0)
+  const diagMax = DIAG_AREAS.length * 5
+  const diagPct = Math.round((diagTotal / diagMax) * 100)
+  const diagOverallColor = diagPct >= 80 ? 'var(--teal)' : diagPct >= 60 ? 'var(--gold)' : diagPct >= 40 ? 'var(--amber)' : 'var(--red)'
+  const diagLabel = diagPct >= 80 ? 'Ready to scale' : diagPct >= 60 ? 'Strong foundation' : diagPct >= 40 ? 'Building momentum' : diagPct > 0 ? 'Needs significant work' : 'Not yet scored'
+
+  const connColors = { 'Cold':'var(--blue)', 'Warm':'var(--gold)', 'Hot':'var(--red)', 'Existing relationship':'var(--teal)', 'Referral':'var(--purple)', 'Past client':'var(--teal)', 'Event connection':'var(--amber)' }
+
   return (
     <div>
+      {/* Topbar */}
       <div className="topbar">
         <div style={{ display:'flex', alignItems:'center', gap:'1rem' }}>
           <button className="btn btn-ghost btn-sm" onClick={()=>navigate('/pipeline')}>← Pipeline</button>
           <div style={{ fontFamily:'Cormorant Garamond, Georgia, serif', fontSize:'1.3rem' }}>{client.name}</div>
           <span className="badge badge-gold">{client.stage}</span>
+          {client.connection_strength && (
+            <span style={{ fontSize:'.65rem', color:connColors[client.connection_strength]||'var(--muted)', background:`${(connColors[client.connection_strength]||'#888')}15`, border:`.5px solid ${(connColors[client.connection_strength]||'#888')}40`, borderRadius:'20px', padding:'.15rem .5rem' }}>{client.connection_strength}</span>
+          )}
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:'.75rem' }}>
           {isLead && (
-            <button className="btn btn-gold" onClick={() => { setConvertForm({ stage:'Onboarding', mrr: client.mrr?.toString()||'', recommended_package: client.recommended_package||'' }); setShowConvert(true) }}>
+            <button className="btn btn-gold" onClick={() => { setConvertForm({ stage:'Onboarding', mrr:client.mrr?.toString()||'', recommended_package:client.recommended_package||'' }); setShowConvert(true) }}>
               Convert to client →
             </button>
           )}
@@ -228,9 +292,10 @@ export default function ClientDetail() {
         </div>
       </div>
 
-      <div style={{ display:'flex', borderBottom:'.5px solid var(--border)', padding:'0 1.75rem', background:'var(--warm)' }}>
+      {/* Tab bar */}
+      <div style={{ display:'flex', borderBottom:'.5px solid var(--border)', padding:'0 1.75rem', background:'var(--warm)', overflowX:'auto' }}>
         {TABS.map(t=>(
-          <button key={t} onClick={()=>setTab(t)} style={{ padding:'.55rem 1rem', fontSize:'.68rem', letterSpacing:'.1em', textTransform:'uppercase', fontWeight:500, background:'none', border:'none', borderBottom:`2px solid ${tab===t?'var(--gold)':'transparent'}`, color:tab===t?'var(--dark)':'var(--muted)', cursor:'pointer' }}>
+          <button key={t} onClick={()=>setTab(t)} style={{ padding:'.55rem 1rem', fontSize:'.68rem', letterSpacing:'.1em', textTransform:'uppercase', fontWeight:500, background:'none', border:'none', borderBottom:`2px solid ${tab===t?'var(--gold)':'transparent'}`, color:tab===t?'var(--dark)':'var(--muted)', cursor:'pointer', whiteSpace:'nowrap' }}>
             {t.charAt(0).toUpperCase()+t.slice(1)}
           </button>
         ))}
@@ -238,59 +303,134 @@ export default function ClientDetail() {
 
       <div className="page">
 
+        {/* ── OVERVIEW ── */}
         {tab==='overview'&&(
-          <div className="g2" style={{gap:'1.25rem'}}>
-            <div>
-              <div className="card" style={{marginBottom:'1rem'}}>
-                <div className="card-head"><div className="card-title">Pipeline & Scoring</div></div>
-                <div className="card-body" style={{padding:'.5rem 1rem'}}>
-                  <Field label="Stage" value={client.stage} type="select" options={PIPELINE_STAGES} onSave={v=>upd('stage',v)}/>
-                  <Field label="Health" value={client.health} type="select" options={HEALTH_OPTIONS} onSave={v=>upd('health',v)}/>
-                  <Field label="Fit score" value={client.fit_score?.toString()} type="number" onSave={v=>upd('fit_score',Number(v))}/>
-                  <Field label="Lead leak" value={client.lead_leak_stage} type="select" options={LEAK_STAGES} onSave={v=>upd('lead_leak_stage',v)}/>
-                  <Field label="Package" value={client.recommended_package} type="select" options={PACKAGES} onSave={v=>upd('recommended_package',v)}/>
-                  <Field label="Investment" value={client.investment_value?.toString()} type="number" onSave={v=>upd('investment_value',Number(v))}/>
-                  <Field label="MRR" value={client.mrr?.toString()} type="number" onSave={v=>upd('mrr',Number(v))}/>
-                </div>
-              </div>
-
-              <div className="card">
-                <div className="card-head"><div className="card-title">Contact & Next Action</div></div>
-                <div className="card-body" style={{padding:'.5rem 1rem'}}>
-                  <Field label="Contact name" value={client.contact_name} onSave={v=>upd('contact_name',v)}/>
-                  <Field label="Email" value={client.contact_email} onSave={v=>upd('contact_email',v)}/>
-                  <Field label="Phone" value={client.phone} onSave={v=>upd('phone',v)}/>
-                  <Field label="Company" value={client.company} onSave={v=>upd('company',v)}/>
-                  <Field label="Role" value={client.contact_role} onSave={v=>upd('contact_role',v)}/>
-                  <Field label="Website" value={client.website} onSave={v=>upd('website',v)}/>
-                  <Field label="Connector" value={client.connector_name} onSave={v=>upd('connector_name',v)}/>
-                  <Field label="Date contacted" value={client.date_contacted} type="date" onSave={v=>upd('date_contacted',v)}/>
-                  <MultiCheckField label="Action taken" value={client.action_taken} options={ACTION_TAKEN_OPTIONS} onSave={v=>upd('action_taken',v)}/>
-                  <Field label="Next action" value={client.next_action} onSave={v=>upd('next_action',v)}/>
-                  <Field label="Next action date" value={client.next_action_date} type="date" onSave={v=>upd('next_action_date',v)}/>
-                  <Field label="Next action to take" value={client.next_action_to_take} type="select" options={NEXT_ACTION_OPTIONS} onSave={v=>upd('next_action_to_take',v)}/>
-                  {assignOptions.length > 0 && (
-                    <Field label="Assigned to" value={client.assigned_to} type="select" options={assignOptions} onSave={v=>upd('assigned_to',v)}/>
-                  )}
-                </div>
-              </div>
+          <div>
+            {/* Inara Notes — sticky note */}
+            <div style={{ background:'#FBF3E6', border:'.5px solid var(--gold-b)', borderRadius:'10px', padding:'1rem 1.25rem', marginBottom:'1.25rem', borderLeft:'3px solid var(--gold)' }}>
+              <div style={{ fontSize:'.52rem', letterSpacing:'.2em', textTransform:'uppercase', color:'var(--gold)', fontWeight:600, marginBottom:'.4rem' }}>Inara Notes</div>
+              <textarea
+                style={{ border:'none', background:'transparent', padding:0, minHeight:64, fontSize:'.88rem', fontFamily:'Cormorant Garamond, Georgia, serif', fontStyle:'italic', color:'var(--dark2)', resize:'none', lineHeight:1.7, width:'100%', outline:'none' }}
+                placeholder="Quick thoughts, opportunities, personality notes, ideas…"
+                value={client.inara_notes||''}
+                onChange={e=>setClient(c=>({...c,inara_notes:e.target.value}))}
+                onBlur={e=>upd('inara_notes',e.target.value)}
+              />
             </div>
 
-            <div className="card">
-              <div className="card-head"><div className="card-title">Discovery & Diagnosis</div></div>
-              <div className="card-body" style={{padding:'.5rem 1rem'}}>
-                <Field label="Core insight" value={client.diagnosis_core_insight} type="textarea" onSave={v=>upd('diagnosis_core_insight',v)}/>
-                <Field label="Bottleneck" value={client.diagnosis_bottleneck} type="textarea" onSave={v=>upd('diagnosis_bottleneck',v)}/>
-                <Field label="Opening line" value={client.diagnosis_opening_line} type="textarea" onSave={v=>upd('diagnosis_opening_line',v)}/>
-                <Field label="Confidence" value={client.diagnosis_confidence} type="select" options={['High','Medium','Low']} onSave={v=>upd('diagnosis_confidence',v)}/>
-                <Field label="Connector notes" value={client.handover_notes} type="textarea" onSave={v=>upd('handover_notes',v)}/>
-                <Field label="Discovery notes" value={client.discovery_notes} type="textarea" onSave={v=>upd('discovery_notes',v)}/>
-                <Field label="Notes" value={client.notes} type="textarea" onSave={v=>upd('notes',v)}/>
+            <div className="g2" style={{gap:'1.25rem'}}>
+              {/* Left column */}
+              <div>
+                {/* Opportunity Snapshot */}
+                <div className="card" style={{marginBottom:'1rem'}}>
+                  <div className="card-head"><div className="card-title">Opportunity Snapshot</div></div>
+                  <div className="card-body" style={{display:'flex',flexDirection:'column',gap:'1rem'}}>
+
+                    {/* Client Strength */}
+                    <div>
+                      <div style={{fontSize:'.52rem',letterSpacing:'.18em',textTransform:'uppercase',color:'var(--muted)',fontWeight:600,marginBottom:'.35rem'}}>Client strength</div>
+                      <textarea className="form-textarea" style={{minHeight:56,fontSize:'.8rem'}} placeholder="This client has strong potential for…" value={client.client_strength||''} onChange={e=>setClient(c=>({...c,client_strength:e.target.value}))} onBlur={e=>upd('client_strength',e.target.value)}/>
+                    </div>
+
+                    {/* Opportunity Tags */}
+                    <div>
+                      <div style={{fontSize:'.52rem',letterSpacing:'.18em',textTransform:'uppercase',color:'var(--muted)',fontWeight:600,marginBottom:'.4rem'}}>Opportunity tags</div>
+                      <div style={{display:'flex',flexWrap:'wrap',gap:'.3rem'}}>
+                        {OPPORTUNITY_TAGS.map(tag=>{
+                          const tags = client.opportunity_tags ? client.opportunity_tags.split(',').map(s=>s.trim()).filter(Boolean) : []
+                          const active = tags.includes(tag)
+                          const newTags = active ? tags.filter(t=>t!==tag) : [...tags,tag]
+                          return (
+                            <button key={tag} onClick={()=>upd('opportunity_tags',newTags.join(', '))} style={{ padding:'.2rem .55rem', borderRadius:'20px', fontSize:'.63rem', cursor:'pointer', background:active?'var(--gold-bg)':'transparent', color:active?'var(--amber)':'var(--muted)', border:`.5px solid ${active?'var(--gold-b)':'var(--border)'}`, transition:'all .1s' }}>{tag}</button>
+                          )
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Relationship Action */}
+                    <div>
+                      <div style={{fontSize:'.52rem',letterSpacing:'.18em',textTransform:'uppercase',color:'var(--muted)',fontWeight:600,marginBottom:'.4rem'}}>Best relationship action</div>
+                      <div style={{display:'flex',flexWrap:'wrap',gap:'.3rem'}}>
+                        {RELATIONSHIP_ACTIONS.map(action=>{
+                          const active = client.relationship_action === action
+                          return (
+                            <button key={action} onClick={()=>upd('relationship_action',active?'':action)} style={{ padding:'.2rem .55rem', borderRadius:'4px', fontSize:'.63rem', cursor:'pointer', background:active?'var(--dark)':'transparent', color:active?'var(--bg)':'var(--muted)', border:`.5px solid ${active?'var(--dark)':'var(--border)'}`, transition:'all .1s' }}>{action}</button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Pipeline & Scoring */}
+                <div className="card">
+                  <div className="card-head"><div className="card-title">Pipeline & Scoring</div></div>
+                  <div className="card-body" style={{padding:'.5rem 1rem'}}>
+                    <Field label="Stage" value={client.stage} type="select" options={PIPELINE_STAGES} onSave={v=>upd('stage',v)}/>
+                    <Field label="Health" value={client.health} type="select" options={HEALTH_OPTIONS} onSave={v=>upd('health',v)}/>
+                    <Field label="Fit score" value={client.fit_score?.toString()} type="number" onSave={v=>upd('fit_score',Number(v))}/>
+                    <Field label="Lead leak" value={client.lead_leak_stage} type="select" options={LEAK_STAGES} onSave={v=>upd('lead_leak_stage',v)}/>
+                    <Field label="Package" value={client.recommended_package} type="select" options={PACKAGES} onSave={v=>upd('recommended_package',v)}/>
+                    <Field label="Investment" value={client.investment_value?.toString()} type="number" onSave={v=>upd('investment_value',Number(v))}/>
+                    <Field label="MRR" value={client.mrr?.toString()} type="number" onSave={v=>upd('mrr',Number(v))}/>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right column */}
+              <div>
+                <div className="card" style={{marginBottom:'1rem'}}>
+                  <div className="card-head"><div className="card-title">Contact & Next Action</div></div>
+                  <div className="card-body" style={{padding:'.5rem 1rem'}}>
+                    <Field label="Contact name" value={client.contact_name} onSave={v=>upd('contact_name',v)}/>
+                    <Field label="Email" value={client.contact_email} onSave={v=>upd('contact_email',v)}/>
+                    <Field label="Phone" value={client.phone} onSave={v=>upd('phone',v)}/>
+                    <Field label="Company" value={client.company} onSave={v=>upd('company',v)}/>
+                    <Field label="Role" value={client.contact_role} onSave={v=>upd('contact_role',v)}/>
+                    <Field label="Website" value={client.website} onSave={v=>upd('website',v)}/>
+                    <Field label="Instagram" value={client.instagram} onSave={v=>upd('instagram',v)}/>
+                    <Field label="LinkedIn" value={client.linkedin} onSave={v=>upd('linkedin',v)}/>
+                    <Field label="Location" value={client.location} onSave={v=>upd('location',v)}/>
+                    <Field label="Connector" value={client.connector_name} onSave={v=>upd('connector_name',v)}/>
+
+                    {/* Connection Strength inline chips */}
+                    <div style={{display:'flex',alignItems:'flex-start',gap:'.5rem',padding:'.35rem 0',borderBottom:'.5px solid var(--border)',minHeight:34}}>
+                      <span style={{fontSize:'.56rem',letterSpacing:'.14em',textTransform:'uppercase',color:'var(--muted)',fontWeight:500,minWidth:110,paddingTop:'.35rem',flexShrink:0}}>Connection</span>
+                      <div style={{display:'flex',flexWrap:'wrap',gap:'.25rem'}}>
+                        {CONNECTION_STRENGTHS.map(s=>{
+                          const active = client.connection_strength === s
+                          const col = connColors[s] || 'var(--muted)'
+                          return <button key={s} onClick={()=>upd('connection_strength',active?'':s)} style={{ padding:'.15rem .45rem', borderRadius:'20px', fontSize:'.62rem', cursor:'pointer', background:active?`${col}18`:'transparent', color:active?col:'var(--muted)', border:`.5px solid ${active?col+'55':'var(--border)'}`, fontWeight:active?500:400 }}>{s}</button>
+                        })}
+                      </div>
+                    </div>
+
+                    <Field label="Date contacted" value={client.date_contacted} type="date" onSave={v=>upd('date_contacted',v)}/>
+                    <MultiCheckField label="Action taken" value={client.action_taken} options={ACTION_TAKEN_OPTIONS} onSave={v=>upd('action_taken',v)}/>
+                    <Field label="Next action" value={client.next_action} onSave={v=>upd('next_action',v)}/>
+                    <Field label="Next action date" value={client.next_action_date} type="date" onSave={v=>upd('next_action_date',v)}/>
+                    <Field label="Next action to take" value={client.next_action_to_take} type="select" options={NEXT_ACTION_OPTIONS} onSave={v=>upd('next_action_to_take',v)}/>
+                    {assignOptions.length>0&&<Field label="Assigned to" value={client.assigned_to} type="select" options={assignOptions} onSave={v=>upd('assigned_to',v)}/>}
+                  </div>
+                </div>
+
+                <div className="card">
+                  <div className="card-head"><div className="card-title">Discovery & Diagnosis</div></div>
+                  <div className="card-body" style={{padding:'.5rem 1rem'}}>
+                    <Field label="Core insight" value={client.diagnosis_core_insight} type="textarea" onSave={v=>upd('diagnosis_core_insight',v)}/>
+                    <Field label="Bottleneck" value={client.diagnosis_bottleneck} type="textarea" onSave={v=>upd('diagnosis_bottleneck',v)}/>
+                    <Field label="Opening line" value={client.diagnosis_opening_line} type="textarea" onSave={v=>upd('diagnosis_opening_line',v)}/>
+                    <Field label="Confidence" value={client.diagnosis_confidence} type="select" options={['High','Medium','Low']} onSave={v=>upd('diagnosis_confidence',v)}/>
+                    <Field label="Connector notes" value={client.handover_notes} type="textarea" onSave={v=>upd('handover_notes',v)}/>
+                    <Field label="Notes" value={client.notes} type="textarea" onSave={v=>upd('notes',v)}/>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         )}
 
+        {/* ── MODULES ── */}
         {tab==='modules'&&(
           <div>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1rem'}}>
@@ -337,14 +477,30 @@ export default function ClientDetail() {
           </div>
         )}
 
+        {/* ── TASKS ── */}
         {tab==='tasks'&&(
           <div>
+            {/* Task flow generator */}
+            <div style={{background:'var(--warm)',border:'.5px solid var(--border)',borderRadius:'8px',padding:'.875rem 1rem',marginBottom:'1.25rem',display:'flex',alignItems:'center',gap:'.75rem',flexWrap:'wrap'}}>
+              <span style={{fontSize:'.65rem',letterSpacing:'.12em',textTransform:'uppercase',color:'var(--muted)',fontWeight:500,flexShrink:0}}>Generate tasks for:</span>
+              <select className="form-select" style={{flex:1,minWidth:180,maxWidth:280}} value={taskFlow} onChange={e=>setTaskFlow(e.target.value)}>
+                <option value="">— Choose a stage —</option>
+                {Object.keys(STAGE_TASK_FLOWS).map(k=><option key={k}>{k}</option>)}
+              </select>
+              {taskFlow&&(
+                <>
+                  <div style={{fontSize:'.7rem',color:'var(--muted)',flex:1}}>Adds {STAGE_TASK_FLOWS[taskFlow].length} tasks</div>
+                  <button className="btn btn-primary btn-sm" onClick={applyTaskFlow} disabled={addingFlow}>{addingFlow?'Adding…':'Add tasks'}</button>
+                </>
+              )}
+            </div>
+
             <div style={{display:'flex',justifyContent:'space-between',marginBottom:'1rem'}}>
               <div style={{fontSize:'.78rem',color:'var(--muted)'}}>{tasks.length} tasks</div>
               <button className="btn btn-primary" onClick={addTsk}>+ Add task</button>
             </div>
             {tasks.length===0
-              ? <div className="empty"><div className="empty-title">No tasks yet</div></div>
+              ? <div className="empty"><div className="empty-title">No tasks yet</div><div className="empty-sub">Add tasks manually or generate them from a stage above.</div></div>
               : <div className="card"><table style={{width:'100%',borderCollapse:'collapse'}}>
                 <thead><tr style={{background:'var(--bg)',borderBottom:'.5px solid var(--border)'}}>
                   {['Task','Status','Owner','Due Date',''].map(h=><th key={h} style={{padding:'.55rem 1rem',textAlign:'left',fontSize:'.58rem',letterSpacing:'.15em',textTransform:'uppercase',color:'var(--muted)',fontWeight:500}}>{h}</th>)}
@@ -363,6 +519,47 @@ export default function ClientDetail() {
           </div>
         )}
 
+        {/* ── DIAGNOSIS ── */}
+        {tab==='diagnosis'&&(
+          <div style={{maxWidth:900}}>
+            {/* Overall score */}
+            {diagTotal > 0 && (
+              <div style={{background:'var(--dark)',borderRadius:'12px',padding:'1.5rem 2rem',marginBottom:'1.5rem',display:'flex',alignItems:'center',gap:'2rem'}}>
+                <div style={{position:'relative',width:100,height:100,flexShrink:0}}>
+                  <svg width="100" height="100" style={{transform:'rotate(-90deg)'}}>
+                    <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,.1)" strokeWidth="8"/>
+                    <circle cx="50" cy="50" r="42" fill="none" stroke={diagOverallColor} strokeWidth="8" strokeLinecap="round" strokeDasharray={`${2*Math.PI*42}`} strokeDashoffset={`${2*Math.PI*42*(1-diagPct/100)}`} style={{transition:'stroke-dashoffset .6s ease'}}/>
+                  </svg>
+                  <div style={{position:'absolute',top:'50%',left:'50%',transform:'translate(-50%,-50%)',textAlign:'center'}}>
+                    <div style={{fontFamily:'Cormorant Garamond,serif',fontSize:'1.6rem',fontWeight:300,color:'#F6F2EA',lineHeight:1}}>{diagPct}%</div>
+                    <div style={{fontSize:'.5rem',color:'rgba(255,255,255,.35)',letterSpacing:'.1em',marginTop:'.15rem'}}>{diagTotal}/{diagMax}</div>
+                  </div>
+                </div>
+                <div>
+                  <div style={{fontFamily:'Cormorant Garamond,serif',fontSize:'1.5rem',fontWeight:300,color:'#F6F2EA',marginBottom:'.3rem'}}>{diagLabel}</div>
+                  <div style={{fontSize:'.78rem',color:'rgba(255,255,255,.45)',lineHeight:1.6}}>Score each area below from 1 (not clear / missing) to 5 (excellent / ready to scale). Click a segment to set the score — click the same segment to clear it.</div>
+                </div>
+              </div>
+            )}
+
+            {diagTotal === 0 && (
+              <div style={{background:'var(--warm)',border:'.5px solid var(--border)',borderRadius:'10px',padding:'1.5rem',marginBottom:'1.5rem',textAlign:'center'}}>
+                <div style={{fontFamily:'Cormorant Garamond,serif',fontSize:'1.3rem',color:'var(--muted)',marginBottom:'.35rem'}}>Score this client across 12 marketing areas</div>
+                <div style={{fontSize:'.78rem',color:'var(--muted)'}}>Click segments below to rate each area 1–5. The overall score will appear here.</div>
+              </div>
+            )}
+
+            <div style={{fontSize:'.56rem',letterSpacing:'.18em',textTransform:'uppercase',color:'var(--muted)',fontWeight:600,marginBottom:'.75rem'}}>Rating scale: 1 = Not clear / missing · 2 = Needs major improvement · 3 = Some structure but inconsistent · 4 = Strong foundation · 5 = Excellent / ready to scale</div>
+
+            <div className="g2" style={{gap:'.75rem'}}>
+              {DIAG_AREAS.map(area => (
+                <DiagRow key={area.key} area={area} value={client[area.key]||0} onSave={updDiag} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── NOTES ── */}
         {tab==='notes'&&(
           <div className="g2" style={{gap:'1.25rem'}}>
             <div className="card"><div className="card-head"><div className="card-title">Discovery Call Notes</div></div><div className="card-body"><textarea className="form-textarea" style={{minHeight:200}} value={client.discovery_notes||''} onChange={e=>setClient(c=>({...c,discovery_notes:e.target.value}))} onBlur={e=>upd('discovery_notes',e.target.value)} placeholder="Paste transcript summary, pain points in their own words..."/></div></div>
@@ -372,6 +569,7 @@ export default function ClientDetail() {
           </div>
         )}
 
+        {/* ── COMMENTS ── */}
         {tab==='comments'&&(
           <div style={{maxWidth:720}}>
             <div style={{display:'flex',flexDirection:'column',gap:'.625rem',marginBottom:'1.5rem'}}>
@@ -379,9 +577,7 @@ export default function ClientDetail() {
               {comments.map(c=>(
                 <div key={c.id} style={{background:'var(--warm)',border:'.5px solid var(--border)',borderRadius:'8px',padding:'.875rem 1rem'}}>
                   <div style={{display:'flex',alignItems:'center',gap:'.5rem',marginBottom:'.5rem'}}>
-                    <div style={{width:24,height:24,borderRadius:'5px',background:'var(--gold-bg)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'.6rem',fontWeight:600,color:'var(--amber)',flexShrink:0}}>
-                      {(c.author_name||'?').slice(0,2).toUpperCase()}
-                    </div>
+                    <div style={{width:24,height:24,borderRadius:'5px',background:'var(--gold-bg)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'.6rem',fontWeight:600,color:'var(--amber)',flexShrink:0}}>{(c.author_name||'?').slice(0,2).toUpperCase()}</div>
                     <span style={{fontSize:'.75rem',fontWeight:500,color:'var(--dark)'}}>{c.author_name||'Team'}</span>
                     <span style={{fontSize:'.65rem',color:'var(--muted)',marginLeft:'auto'}}>{fmtDate(c.created_at)}</span>
                   </div>
@@ -389,54 +585,37 @@ export default function ClientDetail() {
                 </div>
               ))}
             </div>
-
             <div style={{position:'relative'}}>
-              {mentionUsers.length > 0 && (
+              {mentionUsers.length>0&&(
                 <div style={{position:'absolute',bottom:'100%',left:0,right:0,background:'var(--warm)',border:'.5px solid var(--border)',borderRadius:'6px',boxShadow:'0 4px 16px rgba(0,0,0,.1)',zIndex:10,marginBottom:'.25rem'}}>
                   {mentionUsers.slice(0,5).map(u=>(
                     <div key={u.id} onClick={()=>insertMention(u)} style={{display:'flex',alignItems:'center',gap:'.5rem',padding:'.5rem .75rem',cursor:'pointer',borderBottom:'.5px solid var(--border)'}}>
-                      <div style={{width:22,height:22,borderRadius:'4px',background:'var(--gold-bg)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'.6rem',fontWeight:600,color:'var(--amber)'}}>
-                        {(u.name||'?').slice(0,2).toUpperCase()}
-                      </div>
+                      <div style={{width:22,height:22,borderRadius:'4px',background:'var(--gold-bg)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'.6rem',fontWeight:600,color:'var(--amber)'}}>{(u.name||'?').slice(0,2).toUpperCase()}</div>
                       <span style={{fontSize:'.8rem'}}>{u.name}</span>
                     </div>
                   ))}
                 </div>
               )}
-              <textarea
-                ref={commentRef}
-                className="form-textarea"
-                style={{minHeight:80,marginBottom:'.5rem'}}
-                placeholder="Add a comment... type @ to mention someone"
-                value={commentText}
-                onChange={handleCommentChange}
-                onKeyDown={e=>{
-                  if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)){submitComment()}
-                  if(e.key==='Escape'){setMentionSearch(null)}
-                }}
-              />
+              <textarea ref={commentRef} className="form-textarea" style={{minHeight:80,marginBottom:'.5rem'}} placeholder="Add a comment... type @ to mention someone" value={commentText} onChange={handleCommentChange} onKeyDown={e=>{if(e.key==='Enter'&&(e.metaKey||e.ctrlKey))submitComment();if(e.key==='Escape')setMentionSearch(null)}}/>
               <div style={{display:'flex',justifyContent:'flex-end',gap:'.5rem',alignItems:'center'}}>
                 <span style={{fontSize:'.62rem',color:'var(--muted)'}}>⌘+Enter to post</span>
-                <button className="btn btn-primary btn-sm" onClick={submitComment} disabled={submittingComment||!commentText.trim()}>
-                  {submittingComment?'Posting...':'Post comment'}
-                </button>
+                <button className="btn btn-primary btn-sm" onClick={submitComment} disabled={submittingComment||!commentText.trim()}>{submittingComment?'Posting…':'Post comment'}</button>
               </div>
             </div>
           </div>
         )}
 
+        {/* ── EMAILS ── */}
         {tab==='emails'&&(
           <div style={{maxWidth:760}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1.25rem'}}>
               <div style={{fontSize:'.78rem',color:'var(--muted)'}}>{emails.length} emails logged</div>
               <button className="btn btn-primary" onClick={()=>setShowEmailForm(v=>!v)}>+ Log email</button>
             </div>
-
             <div style={{background:'var(--blue-bg)',border:'.5px solid var(--blue-b)',borderRadius:'8px',padding:'.875rem 1rem',marginBottom:'1.25rem',fontSize:'.75rem',color:'var(--blue)',lineHeight:1.6}}>
               <strong style={{display:'block',marginBottom:'.2rem'}}>Auto-capture emails via Postmark</strong>
               BCC your Postmark inbound address when emailing this client and emails will appear here automatically. Ask your admin to set up the Postmark webhook at <code style={{background:'rgba(26,63,107,.08)',borderRadius:'3px',padding:'0 .25rem'}}>/api/inbound-email</code>.
             </div>
-
             {showEmailForm&&(
               <div className="card" style={{marginBottom:'1.25rem'}}>
                 <div className="card-head"><div className="card-title">Log an email</div></div>
@@ -449,12 +628,11 @@ export default function ClientDetail() {
                   <div className="form-group"><label className="form-label">Body</label><textarea className="form-textarea" style={{minHeight:100}} value={emailForm.body} onChange={e=>setEmailForm(f=>({...f,body:e.target.value}))}/></div>
                   <div style={{display:'flex',justifyContent:'flex-end',gap:'.5rem'}}>
                     <button className="btn btn-ghost btn-sm" onClick={()=>setShowEmailForm(false)}>Cancel</button>
-                    <button className="btn btn-primary btn-sm" onClick={saveEmail} disabled={savingEmail}>{savingEmail?'Saving...':'Save'}</button>
+                    <button className="btn btn-primary btn-sm" onClick={saveEmail} disabled={savingEmail}>{savingEmail?'Saving…':'Save'}</button>
                   </div>
                 </div>
               </div>
             )}
-
             <div style={{display:'flex',flexDirection:'column',gap:'.625rem'}}>
               {emails.length===0&&!showEmailForm&&<div style={{color:'var(--muted)',fontSize:'.8rem',padding:'2rem 0',textAlign:'center'}}>No emails logged yet.</div>}
               {emails.map(e=>(
@@ -470,11 +648,7 @@ export default function ClientDetail() {
                     </div>
                     <div style={{fontSize:'.65rem',color:'var(--muted)',flexShrink:0}}>{fmtDate(e.sent_at)}</div>
                   </div>
-                  {e.body&&(
-                    <div style={{padding:'.75rem 1rem',fontSize:'.78rem',color:'var(--dark)',lineHeight:1.7,whiteSpace:'pre-wrap',maxHeight:200,overflowY:'auto'}}>
-                      {e.body}
-                    </div>
-                  )}
+                  {e.body&&<div style={{padding:'.75rem 1rem',fontSize:'.78rem',color:'var(--dark)',lineHeight:1.7,whiteSpace:'pre-wrap',maxHeight:200,overflowY:'auto'}}>{e.body}</div>}
                 </div>
               ))}
             </div>
@@ -483,45 +657,43 @@ export default function ClientDetail() {
 
       </div>
 
-      {showConvert && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowConvert(false)}>
-          <div className="modal" style={{ maxWidth: 480 }}>
+      {/* Convert to client modal */}
+      {showConvert&&(
+        <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setShowConvert(false)}>
+          <div className="modal" style={{maxWidth:480}}>
             <div className="modal-head">
               <div className="modal-title">Convert to Client</div>
-              <button className="btn btn-ghost btn-sm" onClick={() => setShowConvert(false)}>✕</button>
+              <button className="btn btn-ghost btn-sm" onClick={()=>setShowConvert(false)}>✕</button>
             </div>
             <div className="modal-body">
-              <div style={{ background: 'var(--teal-bg)', border: '.5px solid var(--teal-b)', borderRadius: '8px', padding: '.875rem 1rem', fontSize: '.78rem', color: 'var(--teal)', lineHeight: 1.6 }}>
+              <div style={{background:'var(--teal-bg)',border:'.5px solid var(--teal-b)',borderRadius:'8px',padding:'.875rem 1rem',fontSize:'.78rem',color:'var(--teal)',lineHeight:1.6}}>
                 Converting <strong>{client.name}</strong> will move them out of the pipeline and into active client delivery.
               </div>
               <div className="form-group">
                 <label className="form-label">Starting stage</label>
-                <select className="form-select" value={convertForm.stage} onChange={e => setConvertForm(f => ({ ...f, stage: e.target.value }))}>
-                  {CLIENT_STAGES.map(s => <option key={s}>{s}</option>)}
+                <select className="form-select" value={convertForm.stage} onChange={e=>setConvertForm(f=>({...f,stage:e.target.value}))}>
+                  {CLIENT_STAGES.map(s=><option key={s}>{s}</option>)}
                 </select>
               </div>
               <div className="form-group">
                 <label className="form-label">Package</label>
-                <select className="form-select" value={convertForm.recommended_package} onChange={e => setConvertForm(f => ({ ...f, recommended_package: e.target.value }))}>
+                <select className="form-select" value={convertForm.recommended_package} onChange={e=>setConvertForm(f=>({...f,recommended_package:e.target.value}))}>
                   <option value="">— Select package —</option>
-                  {PACKAGES.map(p => <option key={p}>{p}</option>)}
+                  {PACKAGES.map(p=><option key={p}>{p}</option>)}
                 </select>
               </div>
               <div className="form-group">
                 <label className="form-label">Monthly retainer (MRR)</label>
-                <input className="form-input" type="number" placeholder="e.g. 3500" value={convertForm.mrr} onChange={e => setConvertForm(f => ({ ...f, mrr: e.target.value }))} />
+                <input className="form-input" type="number" placeholder="e.g. 3500" value={convertForm.mrr} onChange={e=>setConvertForm(f=>({...f,mrr:e.target.value}))}/>
               </div>
             </div>
             <div className="modal-foot">
-              <button className="btn btn-ghost" onClick={() => setShowConvert(false)}>Cancel</button>
-              <button className="btn btn-gold" onClick={handleConvert} disabled={converting}>
-                {converting ? 'Converting...' : 'Confirm conversion →'}
-              </button>
+              <button className="btn btn-ghost" onClick={()=>setShowConvert(false)}>Cancel</button>
+              <button className="btn btn-gold" onClick={handleConvert} disabled={converting}>{converting?'Converting…':'Confirm conversion →'}</button>
             </div>
           </div>
         </div>
       )}
-
     </div>
   )
 }
