@@ -224,7 +224,7 @@ export default function ClientDetail() {
   if (loading) return <div className="page"><div className="loading"><div className="spinner"></div>Loading...</div></div>
   if (!client) return <div className="page"><div className="empty"><div className="empty-title">Client not found</div></div></div>
 
-  const taskStatusColors = { 'To Do':'var(--muted)', 'In Progress':'var(--blue)', 'Awaiting Approval':'var(--amber)', 'Blocked':'var(--red)', 'Complete':'var(--teal)' }
+  const taskStatusColors = { 'To Do':'#C49A6C', 'In Progress':'#8FA7B3', 'Awaiting Approval':'#B9A7C9', 'Blocked':'#C9827A', 'Complete':'#8FA889' }
 
   function TaskCard({ task }) {
     const isExpanded = expandedTask === task.id

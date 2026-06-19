@@ -1,14 +1,14 @@
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,400&family=DM+Sans:wght@300;400;500&display=swap');
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#F6F2EA;--warm:#FDFBF7;--dark:#1A1816;--dark2:#2E2B26;--muted:#88847A;
-  --border:#E0DAD0;--gold:#B8956A;--gold-bg:#FBF3E6;--gold-b:rgba(184,149,106,.3);
-  --teal:#1A6B4A;--teal-bg:#EBF5EF;--teal-b:#A8D5BB;
-  --red:#8B2A1A;--red-bg:#FBF0ED;--red-b:#E8B4A8;
-  --blue:#1A3F6B;--blue-bg:#EBF0F8;--blue-b:#A8BFD8;
-  --purple:#3D3578;--purple-bg:#F0EEFB;--purple-b:#B8B0E8;
-  --amber:#7A4F0A;--amber-bg:#FEF5E6;--amber-b:#E8C87A;
-  --green:#1A5C2A;--green-bg:#E8F5EC;--green-b:#A8D5B4;
+  --bg:#F2F0EC;--warm:#FBFAF7;--dark:#2F2F2D;--dark2:#3D3D3B;--muted:#6F6A64;
+  --border:#DDD8D0;--gold:#A88F72;--gold-bg:#F5EFE6;--gold-b:rgba(168,143,114,.3);
+  --teal:#4A7C6A;--teal-bg:#EDF4F1;--teal-b:#B0CFC6;
+  --red:#9E4A42;--red-bg:#F7EDEC;--red-b:#D9ADA9;
+  --blue:#5A7A8A;--blue-bg:#EDF1F4;--blue-b:#B0C4CE;
+  --purple:#7A6A8F;--purple-bg:#F0EDF5;--purple-b:#C4B8D9;
+  --amber:#9E6A2A;--amber-bg:#F7F0E6;--amber-b:#D9C099;
+  --green:#4A7A52;--green-bg:#EDF3EE;--green-b:#B0CCB5;
 }
 html,body,#root{height:100%;font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--dark);font-size:14px;line-height:1.5}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -38,7 +38,7 @@ html,body,#root{height:100%;font-family:'DM Sans',sans-serif;background:var(--bg
 .card-title{font-size:.6rem;letter-spacing:.18em;text-transform:uppercase;font-weight:600;color:var(--muted)}
 .card-body{padding:1.25rem}
 .btn{display:inline-flex;align-items:center;gap:.4rem;padding:.5rem 1.1rem;border-radius:6px;font-family:'DM Sans',sans-serif;font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;font-weight:500;cursor:pointer;transition:all .14s;border:.5px solid;white-space:nowrap;line-height:1}
-.btn-primary{background:var(--dark);color:var(--bg);border-color:var(--dark)}
+.btn-primary{background:var(--dark);color:#fff;border-color:var(--dark)}
 .btn-primary:hover{background:var(--dark2)}
 .btn-gold{background:var(--gold);color:var(--warm);border-color:var(--gold)}
 .btn-gold:hover{background:var(--amber);border-color:var(--amber)}
