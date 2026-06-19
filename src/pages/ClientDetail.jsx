@@ -10,10 +10,10 @@ import {
   getClientComments, createClientComment,
   getClientEmails, createClientEmail,
   getUsers,
-  PIPELINE_STAGES, SALES_STAGES, HEALTH_OPTIONS, LEAK_STAGES, PACKAGES,
+  PIPELINE_STAGES, SALES_STAGES, PACKAGES,
   TASK_STATUSES, TASK_OWNERS, ALL_MODULES, MUST_MODULES,
   ACTION_TAKEN_OPTIONS, NEXT_ACTION_OPTIONS,
-  OPPORTUNITY_TAGS, RELATIONSHIP_ACTIONS, CONNECTION_STRENGTHS, DIAG_AREAS, STAGE_TASK_FLOWS
+  OPPORTUNITY_TAGS, RELATIONSHIP_ACTIONS, CONNECTION_STRENGTHS, STAGE_TASK_FLOWS
 } from '../lib/supabase.js'
 
 /* ── helpers ── */
@@ -28,14 +28,6 @@ function renderWithMentions(text) {
       ? <mark key={i} style={{ background:'var(--gold-bg)', color:'var(--amber)', borderRadius:'3px', padding:'0 .2rem', fontWeight:500 }}>{part}</mark>
       : part
   )
-}
-
-function diagColor(score) {
-  if (!score) return 'var(--border)'
-  if (score <= 1) return 'var(--red)'
-  if (score <= 2) return 'var(--amber)'
-  if (score <= 3) return 'var(--gold)'
-  return 'var(--teal)'
 }
 
 /* ── Field: inline click-to-edit ── */
@@ -100,28 +92,6 @@ function MultiCheckField({ label, value, options, onSave }) {
   )
 }
 
-/* ── DiagRow: 1–5 segment scorer ── */
-function DiagRow({ area, value, onSave }) {
-  const col = diagColor(value)
-  return (
-    <div style={{ background:'var(--warm)', border:'.5px solid var(--border)', borderRadius:'8px', padding:'.75rem 1rem', borderLeft:`3px solid ${col}` }}>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'.5rem' }}>
-        <span style={{ fontSize:'.72rem', fontWeight:500, color:'var(--dark)' }}>{area.label}</span>
-        <span style={{ fontSize:'.68rem', color:col, fontWeight:600 }}>{value ? `${value}/5` : '—'}</span>
-      </div>
-      <div style={{ display:'flex', gap:'.25rem' }}>
-        {[1,2,3,4,5].map(n => (
-          <button key={n} onClick={() => onSave(area.key, n === value ? null : n)} style={{ flex:1, height:8, border:'none', borderRadius:'2px', cursor:'pointer', background: n <= (value||0) ? col : 'var(--border)', transition:'all .12s' }} />
-        ))}
-      </div>
-      <div style={{ display:'flex', justifyContent:'space-between', marginTop:'.25rem' }}>
-        <span style={{ fontSize:'.54rem', color:'var(--muted)' }}>Not clear / missing</span>
-        <span style={{ fontSize:'.54rem', color:'var(--muted)' }}>Excellent / ready to scale</span>
-      </div>
-    </div>
-  )
-}
-
 /* ── Main component ── */
 export default function ClientDetail() {
   const { id } = useParams()
@@ -170,11 +140,6 @@ export default function ClientDetail() {
   const upd = async (field, value) => {
     setClient(c => ({ ...c, [field]: value }))
     try { const u = await updateClient(id, { [field]: value }); setClient(u) } catch (e) { console.error(e) }
-  }
-
-  const updDiag = async (key, value) => {
-    setClient(c => ({ ...c, [key]: value }))
-    try { await updateClient(id, { [key]: value }) } catch (e) { console.error(e) }
   }
 
   const addMod = async (name, priority) => { const m = await addClientModule({client_id:id,module_name:name,priority,status:'Active'}); setModules(p=>[...p,m]); setShowModAdd(false) }
@@ -262,13 +227,6 @@ export default function ClientDetail() {
   const mentionUsers = mentionSearch !== null ? users.filter(u => u.name?.toLowerCase().startsWith(mentionSearch.toLowerCase())) : []
   const isLead = SALES_STAGES.includes(client.stage)
   const CLIENT_STAGES = PIPELINE_STAGES.filter(s => !SALES_STAGES.includes(s))
-
-  const diagScores = DIAG_AREAS.map(a => client[a.key] || 0)
-  const diagTotal = diagScores.reduce((s, v) => s + v, 0)
-  const diagMax = DIAG_AREAS.length * 5
-  const diagPct = Math.round((diagTotal / diagMax) * 100)
-  const diagOverallColor = diagPct >= 80 ? 'var(--teal)' : diagPct >= 60 ? 'var(--gold)' : diagPct >= 40 ? 'var(--amber)' : 'var(--red)'
-  const diagLabel = diagPct >= 80 ? 'Ready to scale' : diagPct >= 60 ? 'Strong foundation' : diagPct >= 40 ? 'Building momentum' : diagPct > 0 ? 'Needs significant work' : 'Not yet scored'
 
   const connColors = { 'Cold':'var(--blue)', 'Warm':'var(--gold)', 'Hot':'var(--red)', 'Existing relationship':'var(--teal)', 'Referral':'var(--purple)', 'Past client':'var(--teal)', 'Event connection':'var(--amber)' }
 
@@ -364,19 +322,6 @@ export default function ClientDetail() {
                   </div>
                 </div>
 
-                {/* Pipeline & Scoring */}
-                <div className="card">
-                  <div className="card-head"><div className="card-title">Pipeline & Scoring</div></div>
-                  <div className="card-body" style={{padding:'.5rem 1rem'}}>
-                    <Field label="Stage" value={client.stage} type="select" options={PIPELINE_STAGES} onSave={v=>upd('stage',v)}/>
-                    <Field label="Health" value={client.health} type="select" options={HEALTH_OPTIONS} onSave={v=>upd('health',v)}/>
-                    <Field label="Fit score" value={client.fit_score?.toString()} type="number" onSave={v=>upd('fit_score',Number(v))}/>
-                    <Field label="Lead leak" value={client.lead_leak_stage} type="select" options={LEAK_STAGES} onSave={v=>upd('lead_leak_stage',v)}/>
-                    <Field label="Package" value={client.recommended_package} type="select" options={PACKAGES} onSave={v=>upd('recommended_package',v)}/>
-                    <Field label="Investment" value={client.investment_value?.toString()} type="number" onSave={v=>upd('investment_value',Number(v))}/>
-                    <Field label="MRR" value={client.mrr?.toString()} type="number" onSave={v=>upd('mrr',Number(v))}/>
-                  </div>
-                </div>
               </div>
 
               {/* Right column */}
@@ -466,65 +411,85 @@ export default function ClientDetail() {
 
         {/* ── DIAGNOSIS ── */}
         {tab==='diagnosis'&&(
-          <div style={{maxWidth:920}}>
+          <div style={{display:'flex',gap:'1.5rem',alignItems:'flex-start'}}>
 
-            {/* AI Diagnostic Engine */}
-            <DiagnosticEngine
-              client={client}
-              clientId={id}
-              onUpdate={updates => setClient(c => ({ ...c, ...updates }))}
-            />
-
-            <div className="divider" style={{margin:'1.75rem 0'}}/>
-
-            {/* Discovery fields */}
-            <div className="card" style={{marginBottom:'1.25rem'}}>
-              <div className="card-head"><div className="card-title">Discovery & Diagnosis Notes</div></div>
-              <div className="card-body" style={{padding:'.5rem 1rem'}}>
-                <Field label="Core insight" value={client.diagnosis_core_insight} type="textarea" onSave={v=>upd('diagnosis_core_insight',v)}/>
-                <Field label="Bottleneck" value={client.diagnosis_bottleneck} type="textarea" onSave={v=>upd('diagnosis_bottleneck',v)}/>
-                <Field label="Opening line" value={client.diagnosis_opening_line} type="textarea" onSave={v=>upd('diagnosis_opening_line',v)}/>
-                <Field label="Confidence" value={client.diagnosis_confidence} type="select" options={['High','Medium','Low']} onSave={v=>upd('diagnosis_confidence',v)}/>
-                <Field label="Connector notes" value={client.handover_notes} type="textarea" onSave={v=>upd('handover_notes',v)}/>
-              </div>
+            {/* Left: AI Diagnostic Engine */}
+            <div style={{flex:1,minWidth:0}}>
+              <DiagnosticEngine
+                client={client}
+                clientId={id}
+                onUpdate={updates => setClient(c => ({ ...c, ...updates }))}
+              />
             </div>
 
-            {/* Manual 12-area scoring */}
-            <div style={{fontSize:'.56rem',letterSpacing:'.18em',textTransform:'uppercase',color:'var(--muted)',fontWeight:600,marginBottom:'.5rem'}}>Manual area scoring</div>
+            {/* Right: Notes sidebar */}
+            <div style={{width:280,flexShrink:0,position:'sticky',top:0}}>
+              <div style={{background:'#FBF3E6',border:'.5px solid var(--gold-b)',borderRadius:'10px',padding:'1rem 1.1rem',borderLeft:'3px solid var(--gold)'}}>
+                <div style={{fontSize:'.52rem',letterSpacing:'.2em',textTransform:'uppercase',color:'var(--gold)',fontWeight:600,marginBottom:'1rem'}}>Diagnosis Notes</div>
 
-            {diagTotal > 0 && (
-              <div style={{background:'var(--dark)',borderRadius:'12px',padding:'1.5rem 2rem',marginBottom:'1.25rem',display:'flex',alignItems:'center',gap:'2rem'}}>
-                <div style={{position:'relative',width:100,height:100,flexShrink:0}}>
-                  <svg width="100" height="100" style={{transform:'rotate(-90deg)'}}>
-                    <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,.1)" strokeWidth="8"/>
-                    <circle cx="50" cy="50" r="42" fill="none" stroke={diagOverallColor} strokeWidth="8" strokeLinecap="round" strokeDasharray={`${2*Math.PI*42}`} strokeDashoffset={`${2*Math.PI*42*(1-diagPct/100)}`} style={{transition:'stroke-dashoffset .6s ease'}}/>
-                  </svg>
-                  <div style={{position:'absolute',top:'50%',left:'50%',transform:'translate(-50%,-50%)',textAlign:'center'}}>
-                    <div style={{fontFamily:'Cormorant Garamond,serif',fontSize:'1.6rem',fontWeight:300,color:'#F6F2EA',lineHeight:1}}>{diagPct}%</div>
-                    <div style={{fontSize:'.5rem',color:'rgba(255,255,255,.35)',letterSpacing:'.1em',marginTop:'.15rem'}}>{diagTotal}/{diagMax}</div>
-                  </div>
+                <div style={{marginBottom:'.875rem'}}>
+                  <div style={{fontSize:'.54rem',letterSpacing:'.14em',textTransform:'uppercase',color:'var(--muted)',fontWeight:500,marginBottom:'.3rem'}}>Core insight</div>
+                  <textarea
+                    className="form-textarea"
+                    style={{minHeight:72,fontSize:'.78rem',background:'rgba(255,255,255,.6)',resize:'vertical'}}
+                    placeholder="What's the core insight about this client?"
+                    value={client.diagnosis_core_insight||''}
+                    onChange={e=>setClient(c=>({...c,diagnosis_core_insight:e.target.value}))}
+                    onBlur={e=>upd('diagnosis_core_insight',e.target.value)}
+                  />
                 </div>
+
+                <div style={{marginBottom:'.875rem'}}>
+                  <div style={{fontSize:'.54rem',letterSpacing:'.14em',textTransform:'uppercase',color:'var(--muted)',fontWeight:500,marginBottom:'.3rem'}}>Main bottleneck</div>
+                  <textarea
+                    className="form-textarea"
+                    style={{minHeight:72,fontSize:'.78rem',background:'rgba(255,255,255,.6)',resize:'vertical'}}
+                    placeholder="Where are they stuck or leaking?"
+                    value={client.diagnosis_bottleneck||''}
+                    onChange={e=>setClient(c=>({...c,diagnosis_bottleneck:e.target.value}))}
+                    onBlur={e=>upd('diagnosis_bottleneck',e.target.value)}
+                  />
+                </div>
+
+                <div style={{marginBottom:'.875rem'}}>
+                  <div style={{fontSize:'.54rem',letterSpacing:'.14em',textTransform:'uppercase',color:'var(--muted)',fontWeight:500,marginBottom:'.3rem'}}>Opening line</div>
+                  <textarea
+                    className="form-textarea"
+                    style={{minHeight:64,fontSize:'.82rem',fontFamily:'Cormorant Garamond,Georgia,serif',fontStyle:'italic',background:'rgba(255,255,255,.6)',resize:'vertical'}}
+                    placeholder="The line that shows Maxine was listening…"
+                    value={client.diagnosis_opening_line||''}
+                    onChange={e=>setClient(c=>({...c,diagnosis_opening_line:e.target.value}))}
+                    onBlur={e=>upd('diagnosis_opening_line',e.target.value)}
+                  />
+                </div>
+
+                <div style={{marginBottom:'.875rem'}}>
+                  <div style={{fontSize:'.54rem',letterSpacing:'.14em',textTransform:'uppercase',color:'var(--muted)',fontWeight:500,marginBottom:'.3rem'}}>Connector / handover notes</div>
+                  <textarea
+                    className="form-textarea"
+                    style={{minHeight:64,fontSize:'.78rem',background:'rgba(255,255,255,.6)',resize:'vertical'}}
+                    placeholder="What did the connector share?"
+                    value={client.handover_notes||''}
+                    onChange={e=>setClient(c=>({...c,handover_notes:e.target.value}))}
+                    onBlur={e=>upd('handover_notes',e.target.value)}
+                  />
+                </div>
+
                 <div>
-                  <div style={{fontFamily:'Cormorant Garamond,serif',fontSize:'1.5rem',fontWeight:300,color:'#F6F2EA',marginBottom:'.3rem'}}>{diagLabel}</div>
-                  <div style={{fontSize:'.78rem',color:'rgba(255,255,255,.45)',lineHeight:1.6}}>Score each area below from 1 (not clear / missing) to 5 (excellent / ready to scale). Click a segment to set the score — click the same segment to clear it.</div>
+                  <div style={{fontSize:'.54rem',letterSpacing:'.14em',textTransform:'uppercase',color:'var(--muted)',fontWeight:500,marginBottom:'.3rem'}}>Confidence</div>
+                  <select
+                    className="form-select"
+                    style={{fontSize:'.78rem',background:'rgba(255,255,255,.6)'}}
+                    value={client.diagnosis_confidence||''}
+                    onChange={e=>upd('diagnosis_confidence',e.target.value)}
+                  >
+                    <option value="">—</option>
+                    {['High','Medium','Low'].map(o=><option key={o}>{o}</option>)}
+                  </select>
                 </div>
               </div>
-            )}
-
-            {diagTotal === 0 && (
-              <div style={{background:'var(--warm)',border:'.5px solid var(--border)',borderRadius:'10px',padding:'1.25rem',marginBottom:'1.25rem',textAlign:'center'}}>
-                <div style={{fontFamily:'Cormorant Garamond,serif',fontSize:'1.2rem',color:'var(--muted)',marginBottom:'.25rem'}}>Score this client across 12 marketing areas</div>
-                <div style={{fontSize:'.75rem',color:'var(--muted)'}}>Click segments below to rate each area 1–5. The overall score will appear here.</div>
-              </div>
-            )}
-
-            <div style={{fontSize:'.52rem',letterSpacing:'.14em',textTransform:'uppercase',color:'var(--muted)',fontWeight:500,marginBottom:'.75rem'}}>1 = Not clear / missing · 2 = Needs major improvement · 3 = Some structure but inconsistent · 4 = Strong foundation · 5 = Excellent / ready to scale</div>
-
-            <div className="g2" style={{gap:'.75rem'}}>
-              {DIAG_AREAS.map(area => (
-                <DiagRow key={area.key} area={area} value={client[area.key]||0} onSave={updDiag} />
-              ))}
             </div>
+
           </div>
         )}
 
