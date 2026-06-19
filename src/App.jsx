@@ -17,6 +17,7 @@ import TeamBoard from './pages/TeamBoard.jsx'
 import AdminUsers from './pages/AdminUsers.jsx'
 import ClientPortal from './pages/ClientPortal.jsx'
 import ContentBoard from './pages/ContentBoard.jsx'
+import GlobalDictation from './components/GlobalDictation.jsx'
 
 export const AuthContext = createContext(null)
 export const useAuth = () => useContext(AuthContext)
@@ -121,6 +122,7 @@ export default function App() {
             <Route path="admin/users" element={<RoleRoute allowedRoles={['admin']}><AdminUsers /></RoleRoute>} />
           </Route>
         </Routes>
+        <GlobalDictation />
       </BrowserRouter>
     </AuthContext.Provider>
   )

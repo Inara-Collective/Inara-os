@@ -285,3 +285,51 @@ export const SOP_CATEGORIES = ['Content','Systems','Client Management','Sales','
 export const OUTSOURCE_ROLES = ['Videographer','Photographer','Graphic Designer','Copywriter','Web Developer','Automation Specialist','Paid Ads Specialist','Events Planner','PR Company','Sales / SDR','CRM Specialist','Data Analyst','SEO Specialist','MC / Facilitator']
 export const ALL_MODULES = ['Brand Positioning & Messaging','Customer Journey Mapping','Content Strategy & Direction','Social Media Systems','Short-Form Video','Website Optimisation','Email Marketing','Lead Generation & Funnels','Photography & Visual Identity','CRM & Automation','Reporting & Analytics','Campaign Planning & Execution','Paid Ads','Event Marketing','SEO & Discoverability','Community & Engagement','Sales Enablement Content','Team Training & Enablement','PR & Earned Media','Partnership & Referral Systems','Long-Form Content','On-Camera Coaching & Presence']
 export const MUST_MODULES = ALL_MODULES.slice(0, 12)
+
+export const MEETING_TYPES = ['Discovery Call','Strategy Session','Check-in / Update','Proposal Meeting','Onboarding Call','Kick-off Meeting','Review Meeting','Planning Session','Ad hoc / General']
+
+export const getClientMeetings = async (clientId) => {
+  const { data, error } = await supabase.from('client_meetings').select('*').eq('client_id', clientId).order('created_at', { ascending: false })
+  if (error) throw error
+  return data || []
+}
+
+export const createClientMeeting = async (meeting) => {
+  const { data, error } = await supabase.from('client_meetings').insert([meeting]).select().single()
+  if (error) throw error
+  return data
+}
+
+export const updateClientMeeting = async (id, updates) => {
+  const { data, error } = await supabase.from('client_meetings').update(updates).eq('id', id).select().single()
+  if (error) throw error
+  return data
+}
+
+export const deleteClientMeeting = async (id) => {
+  const { error } = await supabase.from('client_meetings').delete().eq('id', id)
+  if (error) throw error
+}
+
+export const getClientNotesList = async (clientId) => {
+  const { data, error } = await supabase.from('client_notes').select('*').eq('client_id', clientId).order('created_at', { ascending: false })
+  if (error) throw error
+  return data || []
+}
+
+export const createClientNote = async (note) => {
+  const { data, error } = await supabase.from('client_notes').insert([note]).select().single()
+  if (error) throw error
+  return data
+}
+
+export const updateClientNote = async (id, updates) => {
+  const { data, error } = await supabase.from('client_notes').update(updates).eq('id', id).select().single()
+  if (error) throw error
+  return data
+}
+
+export const deleteClientNote = async (id) => {
+  const { error } = await supabase.from('client_notes').delete().eq('id', id)
+  if (error) throw error
+}
