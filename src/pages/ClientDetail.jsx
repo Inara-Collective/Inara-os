@@ -271,7 +271,7 @@ export default function ClientDetail() {
   const connColors = { 'Cold':'var(--blue)', 'Warm':'var(--gold)', 'Hot':'var(--red)', 'Existing relationship':'var(--teal)', 'Referral':'var(--purple)', 'Past client':'var(--teal)', 'Event connection':'var(--amber)' }
 
   return (
-    <div>
+    <div style={{ height:'100%', display:'flex', flexDirection:'column' }}>
       {/* Topbar */}
       <div className="topbar">
         <div style={{ display:'flex', alignItems:'center', gap:'1rem' }}>
