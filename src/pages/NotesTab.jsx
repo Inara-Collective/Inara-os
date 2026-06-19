@@ -232,33 +232,71 @@ export default function NotesTab({ clientId, clientName }) {
     const isRecording = recordingId === meeting.id
     const isEditingT = editingMeeting?.id === meeting.id && editingMeeting?.field === 'transcript'
     const [localT, setLocalT] = useState(meeting.transcript || '')
+    const [editingHeader, setEditingHeader] = useState(false)
+    const [editTitle, setEditTitle] = useState(meeting.title)
+    const [editType, setEditType] = useState(meeting.meeting_type || MEETING_TYPES[0])
+    const [editDate, setEditDate] = useState(meeting.meeting_date || '')
+    const [editingActions, setEditingActions] = useState(false)
+    const [localA, setLocalA] = useState(meeting.action_items || '')
+
+    const saveHeader = async () => {
+      if (!editTitle.trim()) return
+      const updates = { title: editTitle.trim(), meeting_type: editType, meeting_date: editDate || null }
+      setMeetings(prev => prev.map(m => m.id === meeting.id ? { ...m, ...updates } : m))
+      await updateClientMeeting(meeting.id, updates).catch(console.error)
+      setEditingHeader(false)
+    }
+
+    const saveActions = async () => {
+      setMeetings(prev => prev.map(m => m.id === meeting.id ? { ...m, action_items: localA } : m))
+      await updateClientMeeting(meeting.id, { action_items: localA }).catch(console.error)
+      setEditingActions(false)
+    }
 
     return (
-      <div style={{ background:'var(--warm)', border:'.5px solid var(--border)', borderRadius:'8px', marginBottom:'.5rem', overflow:'hidden' }}
+      <div style={{ background:'var(--warm)', border:`.5px solid ${isOpen ? 'var(--gold-b)' : 'var(--border)'}`, borderRadius:'8px', marginBottom:'.5rem', overflow:'hidden' }}
         onMouseEnter={e=>{ if(!isOpen) e.currentTarget.style.borderColor='var(--gold)' }}
-        onMouseLeave={e=>{ if(!isOpen) e.currentTarget.style.borderColor='var(--border)' }}
+        onMouseLeave={e=>{ if(!isOpen) e.currentTarget.style.borderColor=isOpen?'var(--gold-b)':'var(--border)' }}
       >
-        <div onClick={()=>setExpanded(p=>({...p,[meeting.id]:!p[meeting.id]}))} style={{ padding:'.875rem', cursor:'pointer' }}>
-          <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:'.5rem' }}>
-            <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontWeight:600, fontSize:'.84rem', color:'var(--dark)', lineHeight:1.3 }}>{meeting.title}</div>
-              <div style={{ fontSize:'.66rem', color:'var(--muted)', marginTop:'.2rem' }}>{meeting.meeting_type} · {fmtDate(meeting.meeting_date)}</div>
-              {(meeting.transcript || meeting.action_items) && (
-                <div style={{ display:'flex', gap:'.3rem', marginTop:'.35rem', flexWrap:'wrap' }}>
-                  {meeting.transcript && <span style={{ fontSize:'.58rem', padding:'.1rem .4rem', borderRadius:'20px', background:'var(--teal-bg)', color:'var(--teal)', border:'.5px solid var(--teal-b)' }}>Transcript</span>}
-                  {meeting.action_items && <span style={{ fontSize:'.58rem', padding:'.1rem .4rem', borderRadius:'20px', background:'var(--gold-bg)', color:'var(--amber)', border:'.5px solid var(--gold-b)' }}>Actions</span>}
-                </div>
-              )}
+        {/* Header */}
+        {editingHeader ? (
+          <div style={{ padding:'.875rem', display:'flex', flexDirection:'column', gap:'.5rem' }}>
+            <input className="form-input" style={{ fontWeight:600, fontSize:'.84rem' }} value={editTitle} onChange={e=>setEditTitle(e.target.value)} placeholder="Meeting title…" autoFocus onKeyDown={e=>e.key==='Enter'&&saveHeader()}/>
+            <div style={{ display:'flex', gap:'.5rem' }}>
+              <select className="form-select" style={{ flex:1, fontSize:'.78rem' }} value={editType} onChange={e=>setEditType(e.target.value)}>
+                {MEETING_TYPES.map(t=><option key={t}>{t}</option>)}
+              </select>
+              <input type="date" className="form-input" style={{ width:150, fontSize:'.78rem' }} value={editDate} onChange={e=>setEditDate(e.target.value)}/>
             </div>
-            <div style={{ display:'flex', gap:'.25rem', flexShrink:0, alignItems:'center' }}>
-              {isRecording && <span style={{ display:'flex', alignItems:'center', gap:'.3rem', fontSize:'.62rem', color:'var(--red)' }}><span style={{ width:6,height:6,borderRadius:'50%',background:'var(--red)',display:'inline-block',animation:'spin .9s linear infinite' }}/>Rec</span>}
-              <button onClick={e=>{e.stopPropagation();deleteMeeting(meeting.id)}} className="btn btn-danger btn-xs">✕</button>
-              <span style={{ color:'var(--muted)', fontSize:'.85rem', transform:isOpen?'rotate(90deg)':'none', transition:'transform .15s', display:'inline-block' }}>›</span>
+            <div style={{ display:'flex', gap:'.35rem', justifyContent:'flex-end' }}>
+              <button className="btn btn-ghost btn-xs" onClick={()=>setEditingHeader(false)}>Cancel</button>
+              <button className="btn btn-primary btn-xs" onClick={saveHeader} disabled={!editTitle.trim()}>Save</button>
             </div>
           </div>
-        </div>
+        ) : (
+          <div onClick={()=>setExpanded(p=>({...p,[meeting.id]:!p[meeting.id]}))} style={{ padding:'.875rem', cursor:'pointer' }}>
+            <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:'.5rem' }}>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontWeight:600, fontSize:'.84rem', color:'var(--dark)', lineHeight:1.3 }}>{meeting.title}</div>
+                <div style={{ fontSize:'.66rem', color:'var(--muted)', marginTop:'.2rem' }}>{meeting.meeting_type} · {fmtDate(meeting.meeting_date)}</div>
+                {(meeting.transcript || meeting.action_items) && (
+                  <div style={{ display:'flex', gap:'.3rem', marginTop:'.35rem', flexWrap:'wrap' }}>
+                    {meeting.transcript && <span style={{ fontSize:'.58rem', padding:'.1rem .4rem', borderRadius:'20px', background:'var(--teal-bg)', color:'var(--teal)', border:'.5px solid var(--teal-b)' }}>Transcript</span>}
+                    {meeting.action_items && <span style={{ fontSize:'.58rem', padding:'.1rem .4rem', borderRadius:'20px', background:'var(--gold-bg)', color:'var(--amber)', border:'.5px solid var(--gold-b)' }}>Actions</span>}
+                  </div>
+                )}
+              </div>
+              <div style={{ display:'flex', gap:'.25rem', flexShrink:0, alignItems:'center' }}>
+                {isRecording && <span style={{ display:'flex', alignItems:'center', gap:'.3rem', fontSize:'.62rem', color:'var(--red)' }}><span style={{ width:6,height:6,borderRadius:'50%',background:'var(--red)',display:'inline-block',animation:'spin .9s linear infinite' }}/>Rec</span>}
+                {isOpen && <button onClick={e=>{e.stopPropagation();setEditTitle(meeting.title);setEditType(meeting.meeting_type||MEETING_TYPES[0]);setEditDate(meeting.meeting_date||'');setEditingHeader(true)}} className="btn btn-ghost btn-xs">Edit</button>}
+                <button onClick={e=>{e.stopPropagation();deleteMeeting(meeting.id)}} className="btn btn-danger btn-xs">✕</button>
+                <span style={{ color:'var(--muted)', fontSize:'.85rem', transform:isOpen?'rotate(90deg)':'none', transition:'transform .15s', display:'inline-block' }}>›</span>
+              </div>
+            </div>
+          </div>
+        )}
 
-        {isOpen && (
+        {isOpen && !editingHeader && (
           <div style={{ padding:'.875rem', borderTop:'.5px solid var(--border)', display:'flex', flexDirection:'column', gap:'.875rem' }}>
             {/* Record */}
             <div>
@@ -303,12 +341,24 @@ export default function NotesTab({ clientId, clientName }) {
             </div>
 
             {/* Action items */}
-            {meeting.action_items && (
+            {(meeting.action_items || editingActions) && (
               <div>
-                <div style={{ fontSize:'.52rem', letterSpacing:'.15em', textTransform:'uppercase', color:'var(--muted)', fontWeight:500, marginBottom:'.3rem' }}>Action items</div>
-                <div style={{ background:'var(--gold-bg)', border:'.5px solid var(--gold-b)', borderRadius:'6px', padding:'.75rem' }}>
-                  <pre style={{ fontSize:'.76rem', color:'var(--dark2)', lineHeight:1.75, whiteSpace:'pre-wrap', fontFamily:'inherit', margin:0 }}>{meeting.action_items}</pre>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'.3rem' }}>
+                  <div style={{ fontSize:'.52rem', letterSpacing:'.15em', textTransform:'uppercase', color:'var(--muted)', fontWeight:500 }}>Action items</div>
+                  {!editingActions && <button className="btn btn-ghost btn-xs" onClick={()=>{setLocalA(meeting.action_items||'');setEditingActions(true)}}>Edit</button>}
                 </div>
+                {editingActions
+                  ? <div>
+                      <textarea className="form-textarea" style={{ minHeight:100, fontSize:'.76rem' }} value={localA} onChange={e=>setLocalA(e.target.value)}/>
+                      <div style={{ display:'flex', gap:'.35rem', justifyContent:'flex-end', marginTop:'.35rem' }}>
+                        <button className="btn btn-ghost btn-xs" onClick={()=>setEditingActions(false)}>Cancel</button>
+                        <button className="btn btn-primary btn-xs" onClick={saveActions}>Save</button>
+                      </div>
+                    </div>
+                  : <div style={{ background:'var(--gold-bg)', border:'.5px solid var(--gold-b)', borderRadius:'6px', padding:'.75rem' }}>
+                      <pre style={{ fontSize:'.76rem', color:'var(--dark2)', lineHeight:1.75, whiteSpace:'pre-wrap', fontFamily:'inherit', margin:0 }}>{meeting.action_items}</pre>
+                    </div>
+                }
               </div>
             )}
           </div>
