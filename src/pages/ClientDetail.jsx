@@ -123,6 +123,7 @@ export default function ClientDetail() {
 
   const [taskFlow, setTaskFlow] = useState('')
   const [addingFlow, setAddingFlow] = useState(false)
+  const [expandedTask, setExpandedTask] = useState(null)
 
   useEffect(() => {
     getClient(id)
@@ -148,6 +149,7 @@ export default function ClientDetail() {
   const addTsk = async () => { const t = await createTask({client_id:id,name:'New task',status:'To Do'}); setTasks(p=>[...p,t]) }
   const updTsk = async (tid,field,value) => { const u = await updateTask(tid,{[field]:value}); setTasks(p=>p.map(t=>t.id===tid?u:t)) }
   const delTsk = async (tid) => { await deleteTask(tid); setTasks(p=>p.filter(t=>t.id!==tid)) }
+  const addTskToStatus = async (status) => { const t = await createTask({ client_id:id, name:'New task', status }); setTasks(p=>[...p,t]); setExpandedTask(t.id) }
 
   const applyTaskFlow = async () => {
     if (!taskFlow || addingFlow) return
@@ -221,6 +223,58 @@ export default function ClientDetail() {
 
   if (loading) return <div className="page"><div className="loading"><div className="spinner"></div>Loading...</div></div>
   if (!client) return <div className="page"><div className="empty"><div className="empty-title">Client not found</div></div></div>
+
+  const taskStatusColors = { 'To Do':'var(--muted)', 'In Progress':'var(--blue)', 'Awaiting Approval':'var(--amber)', 'Blocked':'var(--red)', 'Complete':'var(--teal)' }
+
+  function TaskCard({ task }) {
+    const isExpanded = expandedTask === task.id
+    const col = taskStatusColors[task.status] || 'var(--muted)'
+    return (
+      <div
+        style={{ background:'var(--warm)', border:`.5px solid ${isExpanded?'var(--gold-b)':'var(--border)'}`, borderRadius:'8px', marginBottom:'.5rem', overflow:'hidden' }}
+        onMouseEnter={e=>{ if(!isExpanded) e.currentTarget.style.borderColor='var(--gold)' }}
+        onMouseLeave={e=>{ if(!isExpanded) e.currentTarget.style.borderColor=isExpanded?'var(--gold-b)':'var(--border)' }}
+      >
+        {isExpanded ? (
+          <div style={{ padding:'.875rem', display:'flex', flexDirection:'column', gap:'.5rem' }}>
+            <input
+              className="form-input"
+              style={{ fontWeight:600, fontSize:'.84rem' }}
+              defaultValue={task.name}
+              onBlur={e=>updTsk(task.id,'name',e.target.value)}
+              autoFocus
+            />
+            <div style={{ display:'flex', gap:'.5rem' }}>
+              <select className="form-select" style={{ flex:1, fontSize:'.78rem' }} value={task.owner||''} onChange={e=>updTsk(task.id,'owner',e.target.value)}>
+                <option value="">— Owner —</option>
+                {TASK_OWNERS.map(o=><option key={o}>{o}</option>)}
+              </select>
+              <input type="date" className="form-input" style={{ width:145, fontSize:'.78rem' }} value={task.due_date||''} onChange={e=>updTsk(task.id,'due_date',e.target.value)}/>
+            </div>
+            <div style={{ display:'flex', flexWrap:'wrap', gap:'.3rem' }}>
+              {TASK_STATUSES.map(s=>(
+                <button key={s} onClick={()=>updTsk(task.id,'status',s)} style={{ padding:'.15rem .45rem', borderRadius:'20px', fontSize:'.62rem', cursor:'pointer', background:task.status===s?`${taskStatusColors[s]}18`:'transparent', color:task.status===s?taskStatusColors[s]:'var(--muted)', border:`.5px solid ${task.status===s?taskStatusColors[s]+'55':'var(--border)'}`, fontWeight:task.status===s?600:400 }}>{s}</button>
+              ))}
+            </div>
+            <div style={{ display:'flex', justifyContent:'space-between', marginTop:'.25rem' }}>
+              <button className="btn btn-danger btn-xs" onClick={()=>{ delTsk(task.id); setExpandedTask(null) }}>Delete</button>
+              <button className="btn btn-ghost btn-xs" onClick={()=>setExpandedTask(null)}>Done</button>
+            </div>
+          </div>
+        ) : (
+          <div onClick={()=>setExpandedTask(task.id)} style={{ padding:'.875rem', cursor:'pointer' }}>
+            <div style={{ fontWeight:500, fontSize:'.82rem', color:'var(--dark)', lineHeight:1.3 }}>{task.name}</div>
+            {(task.owner||task.due_date) && (
+              <div style={{ display:'flex', gap:'.3rem', marginTop:'.35rem', flexWrap:'wrap' }}>
+                {task.owner && <span style={{ fontSize:'.6rem', padding:'.1rem .4rem', borderRadius:'20px', background:'var(--bg)', color:'var(--muted)', border:'.5px solid var(--border)' }}>{task.owner}</span>}
+                {task.due_date && <span style={{ fontSize:'.6rem', padding:'.1rem .4rem', borderRadius:'20px', background:`${col}10`, color:col, border:`.5px solid ${col}40` }}>{new Date(task.due_date+'T00:00').toLocaleDateString('en-NZ',{day:'numeric',month:'short'})}</span>}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
 
   const TABS = ['overview','tasks','diagnosis','notes','comments','emails']
   const assignOptions = users.map(u => u.name).filter(Boolean)
@@ -370,42 +424,46 @@ export default function ClientDetail() {
         {/* ── TASKS ── */}
         {tab==='tasks'&&(
           <div>
-            {/* Task flow generator */}
-            <div style={{background:'var(--warm)',border:'.5px solid var(--border)',borderRadius:'8px',padding:'.875rem 1rem',marginBottom:'1.25rem',display:'flex',alignItems:'center',gap:'.75rem',flexWrap:'wrap'}}>
+            {/* Task flow bar */}
+            <div style={{background:'var(--warm)',border:'.5px solid var(--border)',borderRadius:'8px',padding:'.75rem 1rem',marginBottom:'1.25rem',display:'flex',alignItems:'center',gap:'.75rem',flexWrap:'wrap'}}>
               <span style={{fontSize:'.65rem',letterSpacing:'.12em',textTransform:'uppercase',color:'var(--muted)',fontWeight:500,flexShrink:0}}>Generate tasks for:</span>
-              <select className="form-select" style={{flex:1,minWidth:180,maxWidth:280}} value={taskFlow} onChange={e=>setTaskFlow(e.target.value)}>
+              <select className="form-select" style={{flex:1,minWidth:160,maxWidth:260}} value={taskFlow} onChange={e=>setTaskFlow(e.target.value)}>
                 <option value="">— Choose a stage —</option>
                 {Object.keys(STAGE_TASK_FLOWS).map(k=><option key={k}>{k}</option>)}
               </select>
               {taskFlow&&(
                 <>
-                  <div style={{fontSize:'.7rem',color:'var(--muted)',flex:1}}>Adds {STAGE_TASK_FLOWS[taskFlow].length} tasks</div>
+                  <div style={{fontSize:'.7rem',color:'var(--muted)'}}>{STAGE_TASK_FLOWS[taskFlow].length} tasks</div>
                   <button className="btn btn-primary btn-sm" onClick={applyTaskFlow} disabled={addingFlow}>{addingFlow?'Adding…':'Add tasks'}</button>
                 </>
               )}
             </div>
 
-            <div style={{display:'flex',justifyContent:'space-between',marginBottom:'1rem'}}>
-              <div style={{fontSize:'.78rem',color:'var(--muted)'}}>{tasks.length} tasks</div>
-              <button className="btn btn-primary" onClick={addTsk}>+ Add task</button>
+            {/* Kanban columns */}
+            <div style={{ display:'flex', gap:'1rem', alignItems:'flex-start', overflowX:'auto', paddingBottom:'.5rem' }}>
+              {TASK_STATUSES.map(status => {
+                const col = taskStatusColors[status] || 'var(--muted)'
+                const colTasks = tasks.filter(t => t.status === status)
+                return (
+                  <div key={status} style={{ flex:1, minWidth:160 }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:'.5rem', marginBottom:'.625rem' }}>
+                      <span style={{ fontSize:'.72rem', fontWeight:600, color:col, letterSpacing:'.04em' }}>{status}</span>
+                      <span style={{ fontSize:'.68rem', color:'var(--muted)', fontWeight:400 }}>{colTasks.length}</span>
+                    </div>
+                    {colTasks.map(task => <TaskCard key={task.id} task={task}/>)}
+                    {colTasks.length===0 && <div style={{ textAlign:'center', padding:'1.25rem .5rem', color:'var(--border)', fontSize:'.7rem' }}>—</div>}
+                    <button
+                      onClick={()=>addTskToStatus(status)}
+                      style={{ width:'100%', background:'none', border:'none', padding:'.35rem .1rem', color:'var(--muted)', fontSize:'.7rem', cursor:'pointer', textAlign:'left', display:'flex', alignItems:'center', gap:'.3rem', opacity:.6 }}
+                      onMouseEnter={e=>e.currentTarget.style.opacity=1}
+                      onMouseLeave={e=>e.currentTarget.style.opacity=.6}
+                    >
+                      <span style={{ fontSize:'.85rem', lineHeight:1 }}>+</span> Add task
+                    </button>
+                  </div>
+                )
+              })}
             </div>
-            {tasks.length===0
-              ? <div className="empty"><div className="empty-title">No tasks yet</div><div className="empty-sub">Add tasks manually or generate them from a stage above.</div></div>
-              : <div className="card"><table style={{width:'100%',borderCollapse:'collapse'}}>
-                <thead><tr style={{background:'var(--bg)',borderBottom:'.5px solid var(--border)'}}>
-                  {['Task','Status','Owner','Due Date',''].map(h=><th key={h} style={{padding:'.55rem 1rem',textAlign:'left',fontSize:'.58rem',letterSpacing:'.15em',textTransform:'uppercase',color:'var(--muted)',fontWeight:500}}>{h}</th>)}
-                </tr></thead>
-                <tbody>{tasks.map(t=>(
-                  <tr key={t.id} style={{borderBottom:'.5px solid var(--border)'}}>
-                    <td style={{padding:'.5rem 1rem'}}><input className="form-input" style={{border:'none',background:'transparent',padding:0,fontSize:'.8rem',fontWeight:500}} value={t.name} onChange={e=>updTsk(t.id,'name',e.target.value)} onBlur={e=>updTsk(t.id,'name',e.target.value)}/></td>
-                    <td style={{padding:'.5rem 1rem'}}><select className="form-select" style={{padding:'.25rem .5rem',fontSize:'.72rem'}} value={t.status} onChange={e=>updTsk(t.id,'status',e.target.value)}>{TASK_STATUSES.map(s=><option key={s}>{s}</option>)}</select></td>
-                    <td style={{padding:'.5rem 1rem'}}><select className="form-select" style={{padding:'.25rem .5rem',fontSize:'.72rem'}} value={t.owner||''} onChange={e=>updTsk(t.id,'owner',e.target.value)}><option value="">—</option>{TASK_OWNERS.map(o=><option key={o}>{o}</option>)}</select></td>
-                    <td style={{padding:'.5rem 1rem'}}><input type="date" className="form-input" style={{padding:'.25rem .5rem',fontSize:'.72rem'}} value={t.due_date||''} onChange={e=>updTsk(t.id,'due_date',e.target.value)}/></td>
-                    <td style={{padding:'.5rem 1rem'}}><button className="btn btn-danger btn-xs" onClick={()=>delTsk(t.id)}>✕</button></td>
-                  </tr>
-                ))}</tbody>
-              </table></div>
-            }
           </div>
         )}
 
