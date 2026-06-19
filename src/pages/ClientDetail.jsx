@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../App.jsx'
+import DiagnosticEngine from './DiagnosticEngine.jsx'
 import {
   getClient, updateClient,
   addClientModule, updateClientModule, deleteClientModule,
@@ -464,10 +465,20 @@ export default function ClientDetail() {
 
         {/* ── DIAGNOSIS ── */}
         {tab==='diagnosis'&&(
-          <div style={{maxWidth:900}}>
+          <div style={{maxWidth:920}}>
+
+            {/* AI Diagnostic Engine */}
+            <DiagnosticEngine
+              client={client}
+              clientId={id}
+              onUpdate={updates => setClient(c => ({ ...c, ...updates }))}
+            />
+
+            <div className="divider" style={{margin:'1.75rem 0'}}/>
+
             {/* Discovery fields */}
             <div className="card" style={{marginBottom:'1.25rem'}}>
-              <div className="card-head"><div className="card-title">Discovery & Diagnosis</div></div>
+              <div className="card-head"><div className="card-title">Discovery & Diagnosis Notes</div></div>
               <div className="card-body" style={{padding:'.5rem 1rem'}}>
                 <Field label="Core insight" value={client.diagnosis_core_insight} type="textarea" onSave={v=>upd('diagnosis_core_insight',v)}/>
                 <Field label="Bottleneck" value={client.diagnosis_bottleneck} type="textarea" onSave={v=>upd('diagnosis_bottleneck',v)}/>
@@ -477,9 +488,11 @@ export default function ClientDetail() {
               </div>
             </div>
 
-            {/* Overall score */}
+            {/* Manual 12-area scoring */}
+            <div style={{fontSize:'.56rem',letterSpacing:'.18em',textTransform:'uppercase',color:'var(--muted)',fontWeight:600,marginBottom:'.5rem'}}>Manual area scoring</div>
+
             {diagTotal > 0 && (
-              <div style={{background:'var(--dark)',borderRadius:'12px',padding:'1.5rem 2rem',marginBottom:'1.5rem',display:'flex',alignItems:'center',gap:'2rem'}}>
+              <div style={{background:'var(--dark)',borderRadius:'12px',padding:'1.5rem 2rem',marginBottom:'1.25rem',display:'flex',alignItems:'center',gap:'2rem'}}>
                 <div style={{position:'relative',width:100,height:100,flexShrink:0}}>
                   <svg width="100" height="100" style={{transform:'rotate(-90deg)'}}>
                     <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,.1)" strokeWidth="8"/>
@@ -498,13 +511,13 @@ export default function ClientDetail() {
             )}
 
             {diagTotal === 0 && (
-              <div style={{background:'var(--warm)',border:'.5px solid var(--border)',borderRadius:'10px',padding:'1.5rem',marginBottom:'1.5rem',textAlign:'center'}}>
-                <div style={{fontFamily:'Cormorant Garamond,serif',fontSize:'1.3rem',color:'var(--muted)',marginBottom:'.35rem'}}>Score this client across 12 marketing areas</div>
-                <div style={{fontSize:'.78rem',color:'var(--muted)'}}>Click segments below to rate each area 1–5. The overall score will appear here.</div>
+              <div style={{background:'var(--warm)',border:'.5px solid var(--border)',borderRadius:'10px',padding:'1.25rem',marginBottom:'1.25rem',textAlign:'center'}}>
+                <div style={{fontFamily:'Cormorant Garamond,serif',fontSize:'1.2rem',color:'var(--muted)',marginBottom:'.25rem'}}>Score this client across 12 marketing areas</div>
+                <div style={{fontSize:'.75rem',color:'var(--muted)'}}>Click segments below to rate each area 1–5. The overall score will appear here.</div>
               </div>
             )}
 
-            <div style={{fontSize:'.56rem',letterSpacing:'.18em',textTransform:'uppercase',color:'var(--muted)',fontWeight:600,marginBottom:'.75rem'}}>Rating scale: 1 = Not clear / missing · 2 = Needs major improvement · 3 = Some structure but inconsistent · 4 = Strong foundation · 5 = Excellent / ready to scale</div>
+            <div style={{fontSize:'.52rem',letterSpacing:'.14em',textTransform:'uppercase',color:'var(--muted)',fontWeight:500,marginBottom:'.75rem'}}>1 = Not clear / missing · 2 = Needs major improvement · 3 = Some structure but inconsistent · 4 = Strong foundation · 5 = Excellent / ready to scale</div>
 
             <div className="g2" style={{gap:'.75rem'}}>
               {DIAG_AREAS.map(area => (
