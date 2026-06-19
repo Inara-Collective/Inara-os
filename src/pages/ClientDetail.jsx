@@ -38,7 +38,7 @@ function Field({ label, value, type, options, onSave }) {
   if (!editing) return (
     <div onClick={() => setEditing(true)} style={{ display:'flex', alignItems:'flex-start', gap:'.5rem', padding:'.35rem 0', borderBottom:'.5px solid var(--border)', cursor:'pointer', minHeight:34 }}>
       <span style={{ fontSize:'.56rem', letterSpacing:'.14em', textTransform:'uppercase', color:'var(--muted)', fontWeight:500, minWidth:110, paddingTop:'.1rem', flexShrink:0 }}>{label}</span>
-      <span style={{ fontSize:'.8rem', color:value?'var(--dark)':'var(--muted)', fontStyle:value?'normal':'italic', flex:1 }}>{value || 'Click to edit'}</span>
+      <span style={{ fontSize:'.8rem', color:value?'var(--dark)':'var(--border)', flex:1 }}>{value || '—'}</span>
     </div>
   )
   return (
@@ -71,7 +71,7 @@ function MultiCheckField({ label, value, options, onSave }) {
   if (!editing) return (
     <div onClick={open} style={{ display:'flex', alignItems:'flex-start', gap:'.5rem', padding:'.35rem 0', borderBottom:'.5px solid var(--border)', cursor:'pointer', minHeight:34 }}>
       <span style={{ fontSize:'.56rem', letterSpacing:'.14em', textTransform:'uppercase', color:'var(--muted)', fontWeight:500, minWidth:110, paddingTop:'.1rem', flexShrink:0 }}>{label}</span>
-      <span style={{ fontSize:'.8rem', color:current.length?'var(--dark)':'var(--muted)', fontStyle:current.length?'normal':'italic', flex:1 }}>{current.length ? current.join(', ') : 'Click to edit'}</span>
+      <span style={{ fontSize:'.8rem', color:current.length?'var(--dark)':'var(--border)', flex:1 }}>{current.length ? current.join(', ') : '—'}</span>
     </div>
   )
   return (
