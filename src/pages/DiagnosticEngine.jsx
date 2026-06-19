@@ -296,17 +296,25 @@ export default function DiagnosticEngine({ client, clientId, onUpdate }) {
   const [form, setForm] = useState({
     url: client?.website || '',
     revenue: '',
+    instagram_url: client?.instagram || '',
+    facebook_url: '',
+    company_linkedin: '',
+    personal_linkedin: client?.linkedin || '',
+    tiktok_url: '',
     web: '',
     soc: '',
     rev: '',
     extra: '',
   })
+  const [uploads, setUploads] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [result, setResult] = useState(client?.diagnostic_result || null)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(!!client?.diagnostic_result)
   const [showForm, setShowForm] = useState(!client?.diagnostic_result)
+  const [dragOver, setDragOver] = useState(false)
+  const fileInputRef = React.useRef(null)
 
   useEffect(() => {
     window.diagToggleModule = function(i) {
@@ -320,21 +328,66 @@ export default function DiagnosticEngine({ client, clientId, onUpdate }) {
     return () => { delete window.diagToggleModule }
   }, [])
 
+  const handleFiles = (files) => {
+    Array.from(files).forEach(file => {
+      const reader = new FileReader()
+      if (file.type.startsWith('image/')) {
+        reader.onload = e => {
+          const dataUrl = e.target.result
+          setUploads(prev => [...prev, {
+            id: Date.now() + Math.random(),
+            name: file.name,
+            isImage: true,
+            mediaType: file.type,
+            data: dataUrl.split(',')[1],
+            preview: dataUrl,
+          }])
+        }
+        reader.readAsDataURL(file)
+      } else {
+        reader.onload = e => {
+          setUploads(prev => [...prev, {
+            id: Date.now() + Math.random(),
+            name: file.name,
+            isImage: false,
+            content: e.target.result,
+          }])
+        }
+        reader.readAsText(file)
+      }
+    })
+  }
+
   const runDiagnostic = async () => {
-    if (!form.web && !form.soc && !form.rev && !form.extra) {
-      setError('Please paste at least some business information — website copy, social media, or anything you have found.')
+    const hasContent = form.web || form.soc || form.rev || form.extra || uploads.length > 0
+    if (!hasContent) {
+      setError('Please paste at least some business information — website copy, social media, or upload a file.')
       return
     }
     setLoading(true)
     setError(null)
     setResult(null)
     const bn = client?.name || 'this business'
+
+    const socialUrls = [
+      form.instagram_url && `Instagram: ${form.instagram_url}`,
+      form.facebook_url && `Facebook: ${form.facebook_url}`,
+      form.company_linkedin && `Company LinkedIn: ${form.company_linkedin}`,
+      form.personal_linkedin && `Personal LinkedIn: ${form.personal_linkedin}`,
+      form.tiktok_url && `TikTok: ${form.tiktok_url}`,
+    ].filter(Boolean).join('\n')
+
+    const textDocs = uploads.filter(u => !u.isImage).map(u => `[DOCUMENT: ${u.name}]\n${u.content}`).join('\n\n')
+
     const prompt = `Run a full marketing diagnostic on this business:
 
 BUSINESS: ${bn}
 INDUSTRY: ${client?.industry || 'Not specified'}
 WEBSITE URL: ${form.url || client?.website || 'Not provided'}
 REVENUE: ${form.revenue || 'Not specified'}
+
+SOCIAL MEDIA PROFILE URLS:
+${socialUrls || 'Not provided'}
 
 WEBSITE CONTENT:
 ${form.web || 'Not provided'}
@@ -346,11 +399,19 @@ REVIEWS & TESTIMONIALS:
 ${form.rev || 'Not provided'}
 
 ADDITIONAL INFORMATION:
-${form.extra || 'None'}
+${form.extra || 'None'}${textDocs ? `\n\nUPLOADED DOCUMENTS:\n${textDocs}` : ''}
 
 Based on all of the above, produce the comprehensive diagnostic JSON. Be specific to THIS business — reference actual things you found in their content. Do not give generic advice.`
 
     try {
+      const imageBlocks = uploads.filter(u => u.isImage).map(u => ({
+        type: 'image',
+        source: { type: 'base64', media_type: u.mediaType, data: u.data }
+      }))
+      const msgContent = imageBlocks.length > 0
+        ? [{ type: 'text', text: prompt }, ...imageBlocks]
+        : prompt
+
       const resp = await fetch('https://inara-api-proxy.maxine-44c.workers.dev', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -358,7 +419,7 @@ Based on all of the above, produce the comprehensive diagnostic JSON. Be specifi
           model: 'claude-sonnet-4-6',
           max_tokens: 8000,
           system: SYSTEM,
-          messages: [{ role: 'user', content: prompt }]
+          messages: [{ role: 'user', content: msgContent }]
         })
       })
       if (!resp.ok) { const t = await resp.text(); throw new Error('API ' + resp.status + ': ' + t) }
@@ -412,36 +473,111 @@ Based on all of the above, produce the comprehensive diagnostic JSON. Be specifi
         </div>
 
         {showForm && (
-          <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: '.875rem' }}>
+          <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             <div style={{ fontSize: '.72rem', color: 'var(--muted)', lineHeight: 1.6 }}>
-              Paste in any business information — website copy, Instagram bio, social media content, reviews, anything you can find. The engine scores them out of 100, maps every marketing gap to an Inara module, and shows exactly what needs to change.
+              Paste in any business information — website copy, Instagram bio, social media content, reviews, anything you can find. Upload screenshots or documents. The engine scores them out of 100, maps every marketing gap to an Inara module, and shows exactly what needs to change.
             </div>
-            <div className="g2">
-              <div className="form-group">
-                <label className="form-label">Website URL</label>
-                <input className="form-input" value={form.url} onChange={e => setForm(f => ({ ...f, url: e.target.value }))} placeholder="e.g. refreshrenovations.co.nz" />
+
+            {/* Business basics */}
+            <div>
+              <div style={{ fontSize: '.52rem', letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--muted)', fontWeight: 600, marginBottom: '.5rem' }}>Business basics</div>
+              <div className="g2">
+                <div className="form-group">
+                  <label className="form-label">Website URL</label>
+                  <input className="form-input" value={form.url} onChange={e => setForm(f => ({ ...f, url: e.target.value }))} placeholder="e.g. refreshrenovations.co.nz" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Estimated annual revenue (optional)</label>
+                  <input className="form-input" value={form.revenue} onChange={e => setForm(f => ({ ...f, revenue: e.target.value }))} placeholder="e.g. $1.6M" />
+                </div>
               </div>
-              <div className="form-group">
-                <label className="form-label">Estimated annual revenue (optional)</label>
-                <input className="form-input" value={form.revenue} onChange={e => setForm(f => ({ ...f, revenue: e.target.value }))} placeholder="e.g. $1.6M" />
+            </div>
+
+            {/* Social media profile URLs */}
+            <div>
+              <div style={{ fontSize: '.52rem', letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--muted)', fontWeight: 600, marginBottom: '.5rem' }}>Social media profile URLs</div>
+              <div className="g2" style={{ marginBottom: '.625rem' }}>
+                <div className="form-group">
+                  <label className="form-label">Instagram</label>
+                  <input className="form-input" value={form.instagram_url} onChange={e => setForm(f => ({ ...f, instagram_url: e.target.value }))} placeholder="instagram.com/handle" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Facebook</label>
+                  <input className="form-input" value={form.facebook_url} onChange={e => setForm(f => ({ ...f, facebook_url: e.target.value }))} placeholder="facebook.com/page" />
+                </div>
+              </div>
+              <div className="g2" style={{ marginBottom: '.625rem' }}>
+                <div className="form-group">
+                  <label className="form-label">Company LinkedIn</label>
+                  <input className="form-input" value={form.company_linkedin} onChange={e => setForm(f => ({ ...f, company_linkedin: e.target.value }))} placeholder="linkedin.com/company/name" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Personal LinkedIn</label>
+                  <input className="form-input" value={form.personal_linkedin} onChange={e => setForm(f => ({ ...f, personal_linkedin: e.target.value }))} placeholder="linkedin.com/in/name" />
+                </div>
+              </div>
+              <div style={{ maxWidth: '48%', paddingRight: '.3rem' }}>
+                <div className="form-group">
+                  <label className="form-label">TikTok</label>
+                  <input className="form-input" value={form.tiktok_url} onChange={e => setForm(f => ({ ...f, tiktok_url: e.target.value }))} placeholder="tiktok.com/@handle" />
+                </div>
               </div>
             </div>
-            <div className="form-group">
-              <label className="form-label">Website copy — paste their homepage, about page, services page</label>
-              <textarea className="form-textarea" style={{ minHeight: 100 }} value={form.web} onChange={e => setForm(f => ({ ...f, web: e.target.value }))} placeholder="Paste any copy from their website here. Homepage hero text, about us section, services descriptions, anything." />
+
+            {/* Pasted content */}
+            <div>
+              <div style={{ fontSize: '.52rem', letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--muted)', fontWeight: 600, marginBottom: '.5rem' }}>Paste their content</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
+                <div className="form-group">
+                  <label className="form-label">Website copy — homepage, about page, services page</label>
+                  <textarea className="form-textarea" style={{ minHeight: 100 }} value={form.web} onChange={e => setForm(f => ({ ...f, web: e.target.value }))} placeholder="Paste any copy from their website here. Homepage hero text, about us section, services descriptions, anything." />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Social media — Instagram bio, captions, LinkedIn posts, TikTok</label>
+                  <textarea className="form-textarea" style={{ minHeight: 80 }} value={form.soc} onChange={e => setForm(f => ({ ...f, soc: e.target.value }))} placeholder="Paste their Instagram bio, recent captions, LinkedIn summary, any social content you can find." />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Reviews & testimonials (Google, Facebook, any platform)</label>
+                  <textarea className="form-textarea" style={{ minHeight: 80 }} value={form.rev} onChange={e => setForm(f => ({ ...f, rev: e.target.value }))} placeholder="Paste any Google reviews, Facebook reviews, testimonials on their website..." />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Anything else — ads, email content, press, notes from calls</label>
+                  <textarea className="form-textarea" style={{ minHeight: 80 }} value={form.extra} onChange={e => setForm(f => ({ ...f, extra: e.target.value }))} placeholder="Any Meta ad copy, email newsletters, press mentions, notes from connector calls, anything additional." />
+                </div>
+              </div>
             </div>
-            <div className="form-group">
-              <label className="form-label">Social media — Instagram bio, captions, LinkedIn, TikTok</label>
-              <textarea className="form-textarea" style={{ minHeight: 80 }} value={form.soc} onChange={e => setForm(f => ({ ...f, soc: e.target.value }))} placeholder="Paste their Instagram bio, recent captions, LinkedIn summary, any social content you can find." />
+
+            {/* File upload */}
+            <div>
+              <div style={{ fontSize: '.52rem', letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--muted)', fontWeight: 600, marginBottom: '.5rem' }}>Upload images & documents</div>
+              <div
+                onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={e => { e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files) }}
+                onClick={() => fileInputRef.current?.click()}
+                style={{ border: `.5px dashed ${dragOver ? 'var(--gold)' : 'var(--border)'}`, borderRadius: '8px', padding: '1.5rem', textAlign: 'center', cursor: 'pointer', background: dragOver ? 'var(--gold-bg)' : 'var(--bg)', transition: 'all .15s' }}
+              >
+                <div style={{ fontSize: '.8rem', color: 'var(--muted)', marginBottom: '.25rem' }}>Drag & drop or click to upload</div>
+                <div style={{ fontSize: '.68rem', color: 'var(--muted)' }}>Screenshots, photos, PDFs, text files — images are analysed visually</div>
+                <input ref={fileInputRef} type="file" multiple accept="image/*,.pdf,.txt,.md,.csv,.doc,.docx" style={{ display: 'none' }} onChange={e => handleFiles(e.target.files)} />
+              </div>
+
+              {uploads.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.5rem', marginTop: '.625rem' }}>
+                  {uploads.map(u => (
+                    <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: '.4rem', background: 'var(--warm)', border: '.5px solid var(--border)', borderRadius: '6px', padding: '.3rem .6rem .3rem .4rem', fontSize: '.7rem' }}>
+                      {u.isImage
+                        ? <img src={u.preview} alt={u.name} style={{ width: 28, height: 28, objectFit: 'cover', borderRadius: '3px', flexShrink: 0 }} />
+                        : <span style={{ fontSize: '.8rem', lineHeight: 1 }}>📄</span>
+                      }
+                      <span style={{ color: 'var(--dark)', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.name}</span>
+                      <button onClick={e => { e.stopPropagation(); setUploads(prev => prev.filter(x => x.id !== u.id)) }} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: '.7rem', padding: '0 .1rem', lineHeight: 1 }}>✕</button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-            <div className="form-group">
-              <label className="form-label">Reviews & testimonials (Google, Facebook, any platform)</label>
-              <textarea className="form-textarea" style={{ minHeight: 80 }} value={form.rev} onChange={e => setForm(f => ({ ...f, rev: e.target.value }))} placeholder="Paste any Google reviews, Facebook reviews, testimonials on their website..." />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Anything else — ads, email content, press, notes from calls</label>
-              <textarea className="form-textarea" style={{ minHeight: 80 }} value={form.extra} onChange={e => setForm(f => ({ ...f, extra: e.target.value }))} placeholder="Any Meta ad copy, email newsletters, press mentions, notes from connector calls, anything additional." />
-            </div>
+
             {error && (
               <div style={{ background: 'var(--red-bg)', border: '.5px solid var(--red-b)', borderRadius: '6px', padding: '.625rem .875rem', fontSize: '.76rem', color: 'var(--red)' }}>{error}</div>
             )}
