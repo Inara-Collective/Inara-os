@@ -146,8 +146,8 @@ export default function ClientDetail() {
   const addMod = async (name, priority) => { const m = await addClientModule({client_id:id,module_name:name,priority,status:'Active'}); setModules(p=>[...p,m]); setShowModAdd(false) }
   const togMod = async (m) => { const u = await updateClientModule(m.id,{status:m.status==='Active'?'Paused':'Active'}); setModules(p=>p.map(x=>x.id===m.id?u:x)) }
   const delMod = async (mid) => { await deleteClientModule(mid); setModules(p=>p.filter(m=>m.id!==mid)) }
-  const addTsk = async () => { const t = await createTask({client_id:id,name:'New task',status:'To Do'}); setTasks(p=>[...p,t]) }
-  const updTsk = async (tid,field,value) => { const u = await updateTask(tid,{[field]:value}); setTasks(p=>p.map(t=>t.id===tid?u:t)) }
+  const addTsk = async () => { const t = await createTask({client_id:id,name:'New task',status:'Now'}); setTasks(p=>[...p,t]); setExpandedTask(t.id) }
+  const updTsk = async (tid,field,value) => { setTasks(p=>p.map(t=>t.id===tid?{...t,[field]:value}:t)); try { await updateTask(tid,{[field]:value}) } catch(e){console.error(e)} }
   const delTsk = async (tid) => { await deleteTask(tid); setTasks(p=>p.filter(t=>t.id!==tid)) }
   const addTskToStatus = async (status) => { const t = await createTask({ client_id:id, name:'New task', status }); setTasks(p=>[...p,t]); setExpandedTask(t.id) }
 
@@ -155,7 +155,7 @@ export default function ClientDetail() {
     if (!taskFlow || addingFlow) return
     setAddingFlow(true)
     for (const name of STAGE_TASK_FLOWS[taskFlow] || []) {
-      const t = await createTask({ client_id: id, name, status: 'To Do' })
+      const t = await createTask({ client_id: id, name, status: 'Now' })
       setTasks(p => [...p, t])
     }
     setTaskFlow('')
@@ -228,49 +228,128 @@ export default function ClientDetail() {
 
   function TaskCard({ task }) {
     const isExpanded = expandedTask === task.id
-    const col = taskStatusColors[task.status] || 'var(--muted)'
+    const col = taskStatusColors[task.status] || '#A6AAB5'
+    const progressTotal = task.progress_total || 5
+    const progressCurrent = task.progress_current || 0
+
+    const formatDue = (str) => {
+      if (!str) return null
+      return new Date(str + 'T00:00').toLocaleDateString('en-NZ', { weekday:'long', day:'numeric', month:'long' })
+    }
+
     return (
-      <div
-        style={{ background:'var(--warm)', border:`.5px solid ${isExpanded?'var(--gold-b)':'var(--border)'}`, borderRadius:'8px', marginBottom:'.5rem', overflow:'hidden' }}
-        onMouseEnter={e=>{ if(!isExpanded) e.currentTarget.style.borderColor='var(--gold)' }}
-        onMouseLeave={e=>{ if(!isExpanded) e.currentTarget.style.borderColor=isExpanded?'var(--gold-b)':'var(--border)' }}
+      <div style={{ background:'#FFFFFF', border:'1px solid var(--border)', borderRadius:'20px', marginBottom:'1rem', padding:'1.25rem 1.375rem', boxShadow:'var(--card-shadow)', transition:'box-shadow .15s' }}
+        onMouseEnter={e=>e.currentTarget.style.boxShadow='0 4px 20px rgba(0,0,0,.1)'}
+        onMouseLeave={e=>e.currentTarget.style.boxShadow='var(--card-shadow)'}
       >
         {isExpanded ? (
-          <div style={{ padding:'.875rem', display:'flex', flexDirection:'column', gap:'.5rem' }}>
-            <input
-              className="form-input"
-              style={{ fontWeight:600, fontSize:'.84rem' }}
-              defaultValue={task.name}
-              onBlur={e=>updTsk(task.id,'name',e.target.value)}
-              autoFocus
-            />
+          /* ── Edit mode ── */
+          <div style={{ display:'flex', flexDirection:'column', gap:'.75rem' }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+              <span style={{ fontSize:'.72rem', fontWeight:700, color:'var(--muted)', letterSpacing:'.08em', textTransform:'uppercase' }}>Edit task</span>
+              <button className="btn btn-ghost btn-xs" onClick={()=>setExpandedTask(null)}>Done</button>
+            </div>
+            <input className="form-input" style={{ fontWeight:700, fontSize:'1rem' }} defaultValue={task.name} onBlur={e=>updTsk(task.id,'name',e.target.value)} autoFocus placeholder="Task name…"/>
+            <textarea className="form-textarea" style={{ fontSize:'.875rem', minHeight:56 }} defaultValue={task.next_step||''} onBlur={e=>updTsk(task.id,'next_step',e.target.value)} placeholder="Next tiny step…"/>
             <div style={{ display:'flex', gap:'.5rem' }}>
-              <select className="form-select" style={{ flex:1, fontSize:'.78rem' }} value={task.owner||''} onChange={e=>updTsk(task.id,'owner',e.target.value)}>
+              <select className="form-select" style={{ flex:1, fontSize:'.875rem' }} value={task.owner||''} onChange={e=>updTsk(task.id,'owner',e.target.value)}>
                 <option value="">— Owner —</option>
                 {TASK_OWNERS.map(o=><option key={o}>{o}</option>)}
               </select>
-              <input type="date" className="form-input" style={{ width:145, fontSize:'.78rem' }} value={task.due_date||''} onChange={e=>updTsk(task.id,'due_date',e.target.value)}/>
+              <input type="date" className="form-input" style={{ width:155, fontSize:'.875rem' }} value={task.due_date||''} onChange={e=>updTsk(task.id,'due_date',e.target.value)}/>
             </div>
-            <div style={{ display:'flex', flexWrap:'wrap', gap:'.3rem' }}>
-              {TASK_STATUSES.map(s=>(
-                <button key={s} onClick={()=>updTsk(task.id,'status',s)} style={{ padding:'.15rem .45rem', borderRadius:'20px', fontSize:'.62rem', cursor:'pointer', background:task.status===s?`${taskStatusColors[s]}18`:'transparent', color:task.status===s?taskStatusColors[s]:'var(--muted)', border:`.5px solid ${task.status===s?taskStatusColors[s]+'55':'var(--border)'}`, fontWeight:task.status===s?600:400 }}>{s}</button>
-              ))}
+            {/* Progress dots editor */}
+            <div style={{ display:'flex', alignItems:'center', gap:'.75rem' }}>
+              <span style={{ fontSize:'.75rem', fontWeight:700, color:'var(--muted)', minWidth:68 }}>Progress</span>
+              <div style={{ display:'flex', gap:'.4rem' }}>
+                {Array.from({length:progressTotal},(_,i)=>(
+                  <button key={i} onClick={()=>updTsk(task.id,'progress_current',i+1===progressCurrent?i:i+1)} style={{ width:14, height:14, borderRadius:'50%', border:'none', cursor:'pointer', background:i<progressCurrent?col:'var(--border)', padding:0, transition:'background .15s' }}/>
+                ))}
+              </div>
+              <span style={{ fontSize:'.75rem', color:'var(--muted)' }}>{progressCurrent} of {progressTotal}</span>
             </div>
-            <div style={{ display:'flex', justifyContent:'space-between', marginTop:'.25rem' }}>
-              <button className="btn btn-danger btn-xs" onClick={()=>{ delTsk(task.id); setExpandedTask(null) }}>Delete</button>
-              <button className="btn btn-ghost btn-xs" onClick={()=>setExpandedTask(null)}>Done</button>
+            {/* Status pills */}
+            <div style={{ display:'flex', flexWrap:'wrap', gap:'.35rem' }}>
+              {TASK_STATUSES.map(s=>{
+                const c = taskStatusColors[s]||'#A6AAB5'
+                return <button key={s} onClick={()=>updTsk(task.id,'status',s)} style={{ padding:'.25rem .7rem', borderRadius:'999px', fontSize:'.75rem', cursor:'pointer', background:task.status===s?`${c}22`:'transparent', color:task.status===s?c:'var(--muted)', border:`1px solid ${task.status===s?c+'66':'var(--border)'}`, fontWeight:task.status===s?700:500 }}>{s}</button>
+              })}
             </div>
+            <button className="btn btn-danger btn-xs" style={{ alignSelf:'flex-start' }} onClick={()=>{ delTsk(task.id); setExpandedTask(null) }}>Delete task</button>
           </div>
         ) : (
-          <div onClick={()=>setExpandedTask(task.id)} style={{ padding:'.875rem', cursor:'pointer' }}>
-            <div style={{ fontWeight:500, fontSize:'.82rem', color:'var(--dark)', lineHeight:1.3 }}>{task.name}</div>
-            {(task.owner||task.due_date) && (
-              <div style={{ display:'flex', gap:'.3rem', marginTop:'.35rem', flexWrap:'wrap' }}>
-                {task.owner && <span style={{ fontSize:'.6rem', padding:'.1rem .4rem', borderRadius:'20px', background:'var(--bg)', color:'var(--muted)', border:'.5px solid var(--border)' }}>{task.owner}</span>}
-                {task.due_date && <span style={{ fontSize:'.6rem', padding:'.1rem .4rem', borderRadius:'20px', background:`${col}10`, color:col, border:`.5px solid ${col}40` }}>{new Date(task.due_date+'T00:00').toLocaleDateString('en-NZ',{day:'numeric',month:'short'})}</span>}
+          /* ── Display mode ── */
+          <>
+            {/* Status + menu row */}
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'1rem' }}>
+              <span style={{ background:`${col}22`, color:col, border:`1px solid ${col}66`, borderRadius:'999px', padding:'.25rem .75rem', fontSize:'.75rem', fontWeight:700 }}>{task.status}</span>
+              <button onClick={()=>setExpandedTask(task.id)} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--soft-slate)', fontSize:'1.1rem', padding:'.15rem', lineHeight:1, letterSpacing:'.05em' }}>⋯</button>
+            </div>
+
+            {/* Title */}
+            <div style={{ fontSize:'1.05rem', fontWeight:700, color:'var(--dark)', lineHeight:1.35, marginBottom:'.875rem' }}>{task.name}</div>
+
+            {/* Due + client meta */}
+            {(task.due_date || client.name) && (
+              <div style={{ display:'flex', flexDirection:'column', gap:'.3rem', marginBottom:'.875rem' }}>
+                {task.due_date && (
+                  <div style={{ display:'flex', alignItems:'center', gap:'.5rem', fontSize:'.82rem', color:'var(--muted)' }}>
+                    <span style={{ fontSize:'.9rem' }}>📅</span>
+                    <span>Due: {formatDue(task.due_date)}</span>
+                  </div>
+                )}
+                <div style={{ display:'flex', alignItems:'center', gap:'.5rem', fontSize:'.82rem', color:'var(--muted)' }}>
+                  <span style={{ fontSize:'.9rem' }}>👤</span>
+                  <span>Client: {client.name}</span>
+                </div>
               </div>
             )}
-          </div>
+
+            <div style={{ height:'1px', background:'var(--border)', margin:'.875rem 0' }}/>
+
+            {/* Next tiny step */}
+            <div style={{ marginBottom:'.875rem' }}>
+              <div style={{ fontSize:'.8rem', fontWeight:700, color:'var(--dark)', marginBottom:'.4rem' }}>Next tiny step</div>
+              {task.next_step ? (
+                <div style={{ display:'flex', alignItems:'flex-start', gap:'.5rem' }}>
+                  <span style={{ color:'var(--mist-blue)', flexShrink:0 }}>▶</span>
+                  <span style={{ fontSize:'.875rem', color:'var(--mist-blue)', lineHeight:1.5 }}>{task.next_step}</span>
+                </div>
+              ) : (
+                <button onClick={()=>setExpandedTask(task.id)} style={{ background:'none', border:'none', cursor:'pointer', display:'flex', alignItems:'center', gap:'.5rem', padding:0 }}>
+                  <span style={{ color:'var(--border)' }}>▶</span>
+                  <span style={{ fontSize:'.82rem', color:'var(--soft-slate)', fontStyle:'italic' }}>Add the next step…</span>
+                </button>
+              )}
+            </div>
+
+            <div style={{ height:'1px', background:'var(--border)', margin:'.875rem 0' }}/>
+
+            {/* Progress */}
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'1rem' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:'.625rem' }}>
+                <span style={{ fontSize:'.82rem', fontWeight:700, color:'var(--dark)' }}>Progress</span>
+                <div style={{ display:'flex', gap:'.35rem', alignItems:'center' }}>
+                  {Array.from({length:progressTotal},(_,i)=>(
+                    <div key={i} style={{ width:10, height:10, borderRadius:'50%', background:i<progressCurrent?col:'var(--border)', transition:'background .2s' }}/>
+                  ))}
+                </div>
+              </div>
+              <span style={{ fontSize:'.78rem', color:'var(--muted)', fontWeight:600 }}>{progressCurrent} of {progressTotal}</span>
+            </div>
+
+            {/* Action buttons */}
+            <div style={{ display:'flex', gap:'.625rem' }}>
+              <button
+                onClick={()=>updTsk(task.id,'progress_current',Math.min(progressCurrent+1,progressTotal))}
+                style={{ flex:1, background:'var(--dark)', color:'#fff', border:'none', borderRadius:'12px', padding:'.75rem 1rem', fontSize:'.875rem', fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}
+              >Keep Going</button>
+              <button
+                onClick={()=>setExpandedTask(task.id)}
+                style={{ flex:1, background:'transparent', color:'var(--dark)', border:'1.5px solid var(--border)', borderRadius:'12px', padding:'.75rem 1rem', fontSize:'.875rem', fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}
+              >Add Note</button>
+            </div>
+          </>
         )}
       </div>
     )
