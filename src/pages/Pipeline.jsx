@@ -16,53 +16,120 @@ const STAGE_COLOR = {
 const SOURCE_PALETTE = ['#B8956A','#4A90B8','#4CAF8A','#8B5CBE','#E87F4A','#D4A843','#E06B8B']
 
 function sourceColor(str) {
-  if (!str) return 'rgba(255,255,255,.3)'
+  if (!str) return 'rgba(184,149,106,.6)'
   let h = 0
   for (let i = 0; i < str.length; i++) h = str.charCodeAt(i) + ((h << 5) - h)
   return SOURCE_PALETTE[Math.abs(h) % SOURCE_PALETTE.length]
 }
 
+function avatarColor(str) {
+  if (!str) return '#88847A'
+  const cols = ['#B8956A','#4A90B8','#4CAF8A','#8B5CBE','#E87F4A','#D4A843','#5B8FBE']
+  let h = 0
+  for (let i = 0; i < str.length; i++) h = str.charCodeAt(i) + ((h << 5) - h)
+  return cols[Math.abs(h) % cols.length]
+}
+
+function fmtDate(str) {
+  if (!str) return ''
+  return new Date(str).toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' })
+}
+
 function ClientCard({ client, onClick }) {
-  const sc = sourceColor(client.connector_name)
   const actions = client.action_taken
     ? client.action_taken.split(',').map(a => a.trim()).filter(Boolean)
     : []
+  const sc = sourceColor(client.connector_name)
+  const ac = avatarColor(client.assigned_to)
+  const displayDate = client.next_action_date || client.date_contacted
+  const notesPreview = client.inara_notes?.trim() || client.notes?.trim()
 
   return (
     <div
       onClick={onClick}
-      style={{ background: 'var(--warm)', border: '.5px solid var(--border)', borderRadius: '8px', padding: '.875rem', marginBottom: '.5rem', cursor: 'pointer' }}
+      style={{
+        background: 'var(--warm)',
+        border: '.5px solid var(--border)',
+        borderRadius: '8px',
+        padding: '.875rem',
+        marginBottom: '.5rem',
+        cursor: 'pointer',
+        transition: 'border-color .12s, box-shadow .12s',
+      }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--gold)'; e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,.07)' }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'none' }}
     >
-      <div style={{ fontWeight: 600, fontSize: '.85rem', marginBottom: '.28rem', color: 'var(--dark)', lineHeight: 1.3 }}>{client.name}</div>
-      {client.contact_email && <div style={{ fontSize: '.7rem', color: 'var(--muted)', marginBottom: '.15rem' }}>{client.contact_email}</div>}
-      {client.phone && <div style={{ fontSize: '.7rem', color: 'var(--muted)', marginBottom: '.15rem' }}>{client.phone}</div>}
-      {client.company && <div style={{ fontSize: '.7rem', color: 'var(--muted)', marginBottom: '.28rem' }}>{client.company}</div>}
+      {/* Date */}
+      {displayDate && (
+        <div style={{ fontSize: '.65rem', color: 'var(--muted)', marginBottom: '.35rem' }}>{fmtDate(displayDate)}</div>
+      )}
+
+      {/* Notes preview */}
+      {notesPreview && (
+        <div style={{ fontSize: '.7rem', color: 'var(--muted)', fontStyle: 'italic', marginBottom: '.4rem', lineHeight: 1.5, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+          {notesPreview}
+        </div>
+      )}
+
+      {/* Assigned person */}
+      {client.assigned_to && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '.35rem', marginBottom: '.5rem' }}>
+          <div style={{ width: 18, height: 18, borderRadius: '50%', background: `${ac}22`, border: `.5px solid ${ac}66`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '.52rem', fontWeight: 600, color: ac, flexShrink: 0 }}>
+            {client.assigned_to.slice(0,1).toUpperCase()}
+          </div>
+          <span style={{ fontSize: '.68rem', color: 'var(--muted)' }}>{client.assigned_to}</span>
+        </div>
+      )}
+
+      {/* Name */}
+      <div style={{ fontWeight: 600, fontSize: '.88rem', color: 'var(--dark)', lineHeight: 1.3, marginBottom: '.35rem' }}>{client.name}</div>
+
+      {/* Fit score badge */}
+      {client.fit_score && (
+        <div style={{ marginBottom: '.35rem' }}>
+          {client.fit_score >= 8
+            ? <span style={{ fontSize: '.6rem', padding: '.12rem .45rem', borderRadius: '20px', background: 'var(--purple-bg)', color: 'var(--purple)', border: '.5px solid var(--purple-b)', fontWeight: 500 }}>High</span>
+            : client.fit_score >= 5
+            ? <span style={{ fontSize: '.6rem', padding: '.12rem .45rem', borderRadius: '20px', background: 'var(--gold-bg)', color: 'var(--amber)', border: '.5px solid var(--gold-b)', fontWeight: 500 }}>Medium</span>
+            : <span style={{ fontSize: '.6rem', padding: '.12rem .45rem', borderRadius: '20px', background: 'var(--border)', color: 'var(--muted)', border: '.5px solid var(--border)', fontWeight: 500 }}>Low</span>
+          }
+        </div>
+      )}
+
+      {/* Contact info */}
+      {client.contact_email && <div style={{ fontSize: '.7rem', color: 'var(--muted)', marginBottom: '.18rem' }}>{client.contact_email}</div>}
+      {client.phone && <div style={{ fontSize: '.7rem', color: 'var(--muted)', marginBottom: '.18rem' }}>{client.phone}</div>}
+      {client.company && <div style={{ fontSize: '.7rem', color: 'var(--muted)', marginBottom: '.25rem' }}>{client.company}</div>}
+
+      {/* Source / connector tag */}
       {client.connector_name && (
-        <div style={{ marginBottom: '.28rem' }}>
-          <span style={{ display: 'inline-block', fontSize: '.62rem', padding: '.15rem .55rem', borderRadius: '4px', background: `${sc}22`, color: sc, border: `.5px solid ${sc}66` }}>
+        <div style={{ marginBottom: '.3rem' }}>
+          <span style={{ display: 'inline-block', fontSize: '.62rem', padding: '.15rem .52rem', borderRadius: '20px', background: `${sc}18`, color: sc, border: `.5px solid ${sc}55`, fontWeight: 500 }}>
             {client.connector_name}
           </span>
         </div>
       )}
-      {(client.contact_role || client.industry) && (
-        <div style={{ fontSize: '.68rem', color: 'var(--muted)', marginBottom: '.1rem' }}>
-          {client.contact_role || client.industry}
-        </div>
+
+      {/* Role */}
+      {client.contact_role && (
+        <div style={{ fontSize: '.68rem', color: 'var(--muted)', marginBottom: '.1rem' }}>{client.contact_role}</div>
       )}
-      {(client.next_action || actions.length > 0) && (
+
+      {/* Next action + action taken */}
+      {(client.next_action_to_take || client.next_action || actions.length > 0) && (
         <div style={{ marginTop: '.5rem', paddingTop: '.5rem', borderTop: '.5px solid var(--border)' }}>
-          {client.next_action && (
-            <div style={{ marginBottom: actions.length > 0 ? '.38rem' : 0 }}>
-              <div style={{ fontSize: '.5rem', letterSpacing: '.15em', textTransform: 'uppercase', color: 'var(--muted)', fontWeight: 500, marginBottom: '.12rem' }}>Next action</div>
-              <div style={{ fontSize: '.7rem', color: 'var(--dark)' }}>{client.next_action}</div>
+          {(client.next_action_to_take || client.next_action) && (
+            <div style={{ marginBottom: actions.length > 0 ? '.4rem' : 0 }}>
+              <div style={{ fontSize: '.5rem', letterSpacing: '.15em', textTransform: 'uppercase', color: 'var(--muted)', fontWeight: 600, marginBottom: '.1rem' }}>Next action</div>
+              <div style={{ fontSize: '.7rem', color: 'var(--dark)' }}>{client.next_action_to_take || client.next_action}</div>
             </div>
           )}
           {actions.length > 0 && (
             <div>
-              <div style={{ fontSize: '.5rem', letterSpacing: '.15em', textTransform: 'uppercase', color: 'var(--muted)', fontWeight: 500, marginBottom: '.22rem' }}>Action taken</div>
-              <div style={{ display: 'flex', gap: '.3rem', flexWrap: 'wrap' }}>
+              <div style={{ fontSize: '.5rem', letterSpacing: '.15em', textTransform: 'uppercase', color: 'var(--muted)', fontWeight: 600, marginBottom: '.22rem' }}>Action taken</div>
+              <div style={{ display: 'flex', gap: '.28rem', flexWrap: 'wrap' }}>
                 {actions.map((a, i) => (
-                  <span key={i} style={{ fontSize: '.64rem', padding: '.15rem .55rem', borderRadius: '4px', background: 'rgba(255,255,255,.06)', border: '.5px solid var(--border)', color: 'var(--dark)' }}>{a}</span>
+                  <span key={i} style={{ fontSize: '.62rem', padding: '.13rem .48rem', borderRadius: '4px', background: 'var(--bg)', border: '.5px solid var(--border)', color: 'var(--dark2)', fontWeight: 400 }}>{a}</span>
                 ))}
               </div>
             </div>
@@ -113,37 +180,41 @@ export default function Pipeline() {
         </div>
       </div>
 
-      <div style={{ padding: '1.5rem 2rem 2rem', flex: 1, overflowY: 'auto' }}>
-        <div style={{ display: 'flex', gap: '1rem', alignItems: 'start' }}>
+      <div style={{ padding: '1.25rem 1.75rem 2rem', flex: 1, overflowY: 'auto', overflowX: 'auto' }}>
+        <div style={{ display: 'flex', gap: '.875rem', alignItems: 'start' }}>
           {SALES_STAGES.map(stage => {
             const col = filtered.filter(c => c.stage === stage)
             const color = STAGE_COLOR[stage]
             return (
-              <div key={stage} style={{ width: 240, flexShrink: 0 }}>
-                <div style={{ fontSize: '.58rem', letterSpacing: '.14em', textTransform: 'uppercase', color, fontWeight: 600, marginBottom: '.5rem', padding: '.35rem .6rem', background: 'var(--warm)', border: '.5px solid var(--border)', borderRadius: '6px', borderBottom: `2px solid ${color}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span>{stage}</span>
-                  <span style={{ color: 'var(--muted)', fontWeight: 400 }}>{col.length}</span>
+              <div key={stage} style={{ width: 220, flexShrink: 0 }}>
+                {/* Column header */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.625rem', padding: '0 .1rem' }}>
+                  <span style={{ fontSize: '.72rem', fontWeight: 600, color, letterSpacing: '.04em' }}>{stage}</span>
+                  <span style={{ fontSize: '.68rem', color: 'var(--muted)', fontWeight: 400 }}>{col.length}</span>
                 </div>
-                <button
-                  onClick={() => setShowNew(stage)}
-                  style={{ width: '100%', background: 'none', border: '.5px dashed var(--border)', borderRadius: '6px', padding: '.4rem', color: 'var(--muted)', fontSize: '.7rem', cursor: 'pointer', marginBottom: '.5rem' }}
-                >
-                  + Add
-                </button>
+
+                {/* Cards */}
                 {col.map(c => (
                   <ClientCard key={c.id} client={c} onClick={() => navigate(`/pipeline/${c.id}`)} />
                 ))}
+
+                {/* Empty state */}
                 {col.length === 0 && (
-                  <div style={{ textAlign: 'center', padding: '1.5rem .5rem', color: 'var(--muted)', fontSize: '.72rem', border: '.5px dashed var(--border)', borderRadius: '8px' }}>Empty</div>
+                  <div style={{ textAlign: 'center', padding: '1.25rem .5rem', color: 'var(--border)', fontSize: '.7rem' }}>—</div>
                 )}
+
+                {/* Add new deal */}
+                <button
+                  onClick={() => setShowNew(stage)}
+                  style={{ width: '100%', background: 'none', border: 'none', padding: '.35rem .1rem', color: 'var(--muted)', fontSize: '.7rem', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '.3rem', opacity: .6 }}
+                  onMouseEnter={e => e.currentTarget.style.opacity = 1}
+                  onMouseLeave={e => e.currentTarget.style.opacity = .6}
+                >
+                  <span style={{ fontSize: '.85rem', lineHeight: 1 }}>+</span> New deal
+                </button>
               </div>
             )
           })}
-          <div style={{ width: 200, flexShrink: 0, paddingTop: '.1rem' }}>
-            <button style={{ width: '100%', background: 'none', border: '.5px dashed var(--border)', borderRadius: '6px', padding: '.35rem .6rem', color: 'var(--muted)', fontSize: '.68rem', cursor: 'pointer', textAlign: 'left' }}>
-              + New group
-            </button>
-          </div>
         </div>
       </div>
 
@@ -217,7 +288,7 @@ function NewDealForm({ defaultStage = 'New', users = [], onClose, onSave }) {
         <div style={{ fontSize: '.56rem', letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--muted)', fontWeight: 600, marginBottom: '.5rem' }}>Pipeline</div>
         <div className="g2">
           <div className="form-group"><label className="form-label">Stage</label><select className="form-select" value={form.stage} onChange={e => set('stage', e.target.value)}>{SALES_STAGES.map(s => <option key={s}>{s}</option>)}</select></div>
-          <div className="form-group"><label className="form-label">Lead source</label><input className="form-input" value={form.connector_name} onChange={e => set('connector_name', e.target.value)} placeholder="e.g. Lads Who Lunch" /></div>
+          <div className="form-group"><label className="form-label">Lead source / event</label><input className="form-input" value={form.connector_name} onChange={e => set('connector_name', e.target.value)} placeholder="e.g. Lads Who Lunch May 26" /></div>
         </div>
         <div className="g2">
           <div className="form-group"><label className="form-label">Date contacted</label><input className="form-input" type="date" value={form.date_contacted} onChange={e => set('date_contacted', e.target.value)} /></div>
@@ -254,3 +325,4 @@ function NewDealForm({ defaultStage = 'New', users = [], onClose, onSave }) {
     </>
   )
 }
+
