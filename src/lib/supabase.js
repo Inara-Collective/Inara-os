@@ -266,6 +266,7 @@ export const STAGE_TASK_FLOWS = {
   'Client Won': ['Send onboarding email','Send invoice','Create client folder','Create Milanote / client board','Request brand assets','Book strategy call','Add client to content calendar','Set first delivery date','Add to active client dashboard'],
   'Onboarding': ['Send onboarding welcome email','Confirm invoice paid','Book strategy kick-off call','Create client folder','Request brand assets','Set up client board','Add to content calendar','Brief the team'],
 }
+export const SALES_STAGES = ['New','Reached out','To Action','Discovery','Negotiation','Won','Lost','No Deal stage']
 export const PIPELINE_STAGES = [
   ...SALES_STAGES,
   'Onboarding','Stage 1 — Clarity','Stage 2 — Structure',
