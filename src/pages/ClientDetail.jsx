@@ -255,7 +255,7 @@ export default function ClientDetail() {
   if (loading) return <div className="page"><div className="loading"><div className="spinner"></div>Loading...</div></div>
   if (!client) return <div className="page"><div className="empty"><div className="empty-title">Client not found</div></div></div>
 
-  const TABS = ['overview','modules','tasks','diagnosis','notes','comments','emails']
+  const TABS = ['overview','tasks','diagnosis','notes','comments','emails']
   const assignOptions = users.map(u => u.name).filter(Boolean)
   const mentionUsers = mentionSearch !== null ? users.filter(u => u.name?.toLowerCase().startsWith(mentionSearch.toLowerCase())) : []
   const isLead = SALES_STAGES.includes(client.stage)
@@ -414,68 +414,11 @@ export default function ClientDetail() {
                   </div>
                 </div>
 
-                <div className="card">
-                  <div className="card-head"><div className="card-title">Discovery & Diagnosis</div></div>
-                  <div className="card-body" style={{padding:'.5rem 1rem'}}>
-                    <Field label="Core insight" value={client.diagnosis_core_insight} type="textarea" onSave={v=>upd('diagnosis_core_insight',v)}/>
-                    <Field label="Bottleneck" value={client.diagnosis_bottleneck} type="textarea" onSave={v=>upd('diagnosis_bottleneck',v)}/>
-                    <Field label="Opening line" value={client.diagnosis_opening_line} type="textarea" onSave={v=>upd('diagnosis_opening_line',v)}/>
-                    <Field label="Confidence" value={client.diagnosis_confidence} type="select" options={['High','Medium','Low']} onSave={v=>upd('diagnosis_confidence',v)}/>
-                    <Field label="Connector notes" value={client.handover_notes} type="textarea" onSave={v=>upd('handover_notes',v)}/>
-                    <Field label="Notes" value={client.notes} type="textarea" onSave={v=>upd('notes',v)}/>
-                  </div>
-                </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* ── MODULES ── */}
-        {tab==='modules'&&(
-          <div>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1rem'}}>
-              <div style={{fontSize:'.78rem',color:'var(--muted)'}}>{modules.length} modules activated</div>
-              <button className="btn btn-primary" onClick={()=>setShowModAdd(true)}>+ Activate module</button>
-            </div>
-            {modules.length===0
-              ? <div className="empty"><div className="empty-title">No modules yet</div><div className="empty-sub">Activate modules based on the diagnosis.</div></div>
-              : <div style={{display:'flex',flexDirection:'column',gap:'.625rem'}}>
-                {modules.map(m=>(
-                  <div key={m.id} className="card" style={{borderLeft:`3px solid ${m.status==='Active'?'var(--teal)':m.status==='Paused'?'var(--amber)':'var(--border)'}`}}>
-                    <div style={{padding:'.75rem 1.25rem',display:'flex',alignItems:'center',gap:'1rem'}}>
-                      <div style={{flex:1}}>
-                        <div style={{fontWeight:500,fontSize:'.85rem',marginBottom:'.2rem'}}>{m.module_name}</div>
-                        <div style={{display:'flex',gap:'.4rem'}}>
-                          <span className={`badge ${m.priority==='Must'?'badge-teal':'badge-gold'}`}>{m.priority}</span>
-                          <span className={`badge ${m.status==='Active'?'badge-teal':m.status==='Paused'?'badge-amber':'badge-gray'}`}>{m.status}</span>
-                        </div>
-                      </div>
-                      <div style={{display:'flex',gap:'.4rem'}}>
-                        <button className="btn btn-ghost btn-xs" onClick={()=>togMod(m)}>{m.status==='Active'?'Pause':'Activate'}</button>
-                        <button className="btn btn-danger btn-xs" onClick={()=>delMod(m.id)}>Remove</button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            }
-            {showModAdd&&(
-              <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setShowModAdd(false)}>
-                <div className="modal">
-                  <div className="modal-head"><div className="modal-title">Activate a Module</div><button className="btn btn-ghost btn-sm" onClick={()=>setShowModAdd(false)}>✕</button></div>
-                  <div className="modal-body">
-                    {ALL_MODULES.filter(name=>!modules.find(m=>m.module_name===name)).map(name=>(
-                      <div key={name} onClick={()=>addMod(name,MUST_MODULES.includes(name)?'Must':'Supporting')} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'.625rem .875rem',borderRadius:'6px',marginBottom:'.35rem',border:'.5px solid var(--border)',background:'var(--bg)',cursor:'pointer'}}>
-                        <span style={{fontSize:'.8rem',fontWeight:500}}>{name}</span>
-                        <span className={`badge ${MUST_MODULES.includes(name)?'badge-teal':'badge-gold'}`}>{MUST_MODULES.includes(name)?'Must':'Supporting'}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
 
         {/* ── TASKS ── */}
         {tab==='tasks'&&(
@@ -522,6 +465,18 @@ export default function ClientDetail() {
         {/* ── DIAGNOSIS ── */}
         {tab==='diagnosis'&&(
           <div style={{maxWidth:900}}>
+            {/* Discovery fields */}
+            <div className="card" style={{marginBottom:'1.25rem'}}>
+              <div className="card-head"><div className="card-title">Discovery & Diagnosis</div></div>
+              <div className="card-body" style={{padding:'.5rem 1rem'}}>
+                <Field label="Core insight" value={client.diagnosis_core_insight} type="textarea" onSave={v=>upd('diagnosis_core_insight',v)}/>
+                <Field label="Bottleneck" value={client.diagnosis_bottleneck} type="textarea" onSave={v=>upd('diagnosis_bottleneck',v)}/>
+                <Field label="Opening line" value={client.diagnosis_opening_line} type="textarea" onSave={v=>upd('diagnosis_opening_line',v)}/>
+                <Field label="Confidence" value={client.diagnosis_confidence} type="select" options={['High','Medium','Low']} onSave={v=>upd('diagnosis_confidence',v)}/>
+                <Field label="Connector notes" value={client.handover_notes} type="textarea" onSave={v=>upd('handover_notes',v)}/>
+              </div>
+            </div>
+
             {/* Overall score */}
             {diagTotal > 0 && (
               <div style={{background:'var(--dark)',borderRadius:'12px',padding:'1.5rem 2rem',marginBottom:'1.5rem',display:'flex',alignItems:'center',gap:'2rem'}}>
