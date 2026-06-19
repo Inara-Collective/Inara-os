@@ -142,6 +142,13 @@ export default function ClientDetail() {
   const [submittingComment, setSubmittingComment] = useState(false)
   const commentRef = useRef(null)
 
+  const [recording, setRecording] = useState(false)
+  const [meetingTranscript, setMeetingTranscript] = useState('')
+  const [interimText, setInterimText] = useState('')
+  const [savingTranscript, setSavingTranscript] = useState(false)
+  const recognitionRef = useRef(null)
+  const isRecordingRef = useRef(false)
+
   const [showEmailForm, setShowEmailForm] = useState(false)
   const [emailForm, setEmailForm] = useState({ subject:'', body:'', to_email:'', from_email:'' })
   const [savingEmail, setSavingEmail] = useState(false)
@@ -192,6 +199,50 @@ export default function ClientDetail() {
     }
     setTaskFlow('')
     setAddingFlow(false)
+  }
+
+  const startRecording = () => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SR) { alert('Meeting recording requires Chrome or Edge browser.'); return }
+    const r = new SR()
+    r.continuous = true
+    r.interimResults = true
+    r.lang = 'en-NZ'
+    r.onresult = (e) => {
+      let final = '', interim = ''
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const t = e.results[i][0].transcript
+        if (e.results[i].isFinal) final += t + ' '
+        else interim += t
+      }
+      if (final) setMeetingTranscript(prev => prev + final)
+      setInterimText(interim)
+    }
+    r.onerror = () => { setRecording(false); isRecordingRef.current = false; setInterimText('') }
+    r.onend = () => { if (isRecordingRef.current) r.start() }
+    isRecordingRef.current = true
+    r.start()
+    recognitionRef.current = r
+    setRecording(true)
+    setMeetingTranscript('')
+    setInterimText('')
+  }
+
+  const stopRecording = () => {
+    isRecordingRef.current = false
+    recognitionRef.current?.stop()
+    setRecording(false)
+    setInterimText('')
+  }
+
+  const saveTranscriptToNotes = async () => {
+    if (!meetingTranscript.trim() || savingTranscript) return
+    setSavingTranscript(true)
+    const ts = new Date().toLocaleString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    const newVal = (client.discovery_notes ? client.discovery_notes + '\n\n' : '') + `--- Meeting recorded ${ts} ---\n\n${meetingTranscript.trim()}`
+    setClient(c => ({ ...c, discovery_notes: newVal }))
+    try { await updateClient(id, { discovery_notes: newVal }); setMeetingTranscript('') } catch (e) { console.error(e) }
+    setSavingTranscript(false)
   }
 
   const handleCommentChange = (e) => {
@@ -529,11 +580,47 @@ export default function ClientDetail() {
 
         {/* ── NOTES ── */}
         {tab==='notes'&&(
-          <div className="g2" style={{gap:'1.25rem'}}>
-            <div className="card"><div className="card-head"><div className="card-title">Discovery Call Notes</div></div><div className="card-body"><textarea className="form-textarea" style={{minHeight:200}} value={client.discovery_notes||''} onChange={e=>setClient(c=>({...c,discovery_notes:e.target.value}))} onBlur={e=>upd('discovery_notes',e.target.value)} placeholder="Paste transcript summary, pain points in their own words..."/></div></div>
+          <div style={{display:'flex',flexDirection:'column',gap:'1.25rem'}}>
+
+            {/* Record meeting */}
+            <div className="card">
+              <div className="card-head">
+                <div className="card-title">Record meeting</div>
+                {recording && <span style={{display:'flex',alignItems:'center',gap:'.4rem',fontSize:'.68rem',color:'var(--red)'}}>
+                  <span style={{width:7,height:7,borderRadius:'50%',background:'var(--red)',animation:'spin .9s linear infinite',display:'inline-block'}}/>Recording...
+                </span>}
+              </div>
+              <div className="card-body" style={{display:'flex',flexDirection:'column',gap:'.75rem'}}>
+                <div style={{fontSize:'.72rem',color:'var(--muted)',lineHeight:1.6}}>
+                  Uses your browser's built-in speech recognition to transcribe the meeting in real time. Works best in Chrome or Edge. When done, save the transcript to Meeting Notes below.
+                </div>
+                <div style={{display:'flex',gap:'.625rem',alignItems:'center'}}>
+                  {!recording
+                    ? <button className="btn btn-primary" onClick={startRecording}>● Start recording</button>
+                    : <button className="btn btn-danger" onClick={stopRecording} style={{background:'var(--red)',color:'white',borderColor:'var(--red)'}}>■ Stop recording</button>
+                  }
+                  {meetingTranscript && !recording && (
+                    <button className="btn btn-gold" onClick={saveTranscriptToNotes} disabled={savingTranscript}>
+                      {savingTranscript ? 'Saving…' : 'Save to meeting notes'}
+                    </button>
+                  )}
+                  {meetingTranscript && <button className="btn btn-ghost btn-sm" onClick={()=>setMeetingTranscript('')}>Clear</button>}
+                </div>
+                {(meetingTranscript || interimText) && (
+                  <div style={{background:'var(--bg)',border:'.5px solid var(--border)',borderRadius:'8px',padding:'1rem',maxHeight:220,overflowY:'auto'}}>
+                    <span style={{fontSize:'.82rem',color:'var(--dark)',lineHeight:1.7,whiteSpace:'pre-wrap'}}>{meetingTranscript}</span>
+                    {interimText && <span style={{fontSize:'.82rem',color:'var(--muted)',fontStyle:'italic'}}>{interimText}</span>}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="g2" style={{gap:'1.25rem'}}>
+            <div className="card"><div className="card-head"><div className="card-title">Meeting Notes</div></div><div className="card-body"><textarea className="form-textarea" style={{minHeight:200}} value={client.discovery_notes||''} onChange={e=>setClient(c=>({...c,discovery_notes:e.target.value}))} onBlur={e=>upd('discovery_notes',e.target.value)} placeholder="Paste transcript summary, pain points in their own words..."/></div></div>
             <div className="card"><div className="card-head"><div className="card-title">Handover Notes from Connector</div></div><div className="card-body"><textarea className="form-textarea" style={{minHeight:200}} value={client.handover_notes||''} onChange={e=>setClient(c=>({...c,handover_notes:e.target.value}))} onBlur={e=>upd('handover_notes',e.target.value)} placeholder="What the connector learned..."/></div></div>
             <div className="card"><div className="card-head"><div className="card-title">Opening Line for Proposal</div></div><div className="card-body"><textarea className="form-textarea" style={{minHeight:100,fontFamily:'Cormorant Garamond, Georgia, serif',fontSize:'1rem',fontStyle:'italic'}} value={client.diagnosis_opening_line||''} onChange={e=>setClient(c=>({...c,diagnosis_opening_line:e.target.value}))} onBlur={e=>upd('diagnosis_opening_line',e.target.value)} placeholder="The exact line that shows Maxine was listening..."/></div></div>
             <div className="card"><div className="card-head"><div className="card-title">General Notes</div></div><div className="card-body"><textarea className="form-textarea" style={{minHeight:100}} value={client.notes||''} onChange={e=>setClient(c=>({...c,notes:e.target.value}))} onBlur={e=>upd('notes',e.target.value)}/></div></div>
+            </div>
           </div>
         )}
 

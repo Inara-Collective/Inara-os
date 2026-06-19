@@ -314,6 +314,7 @@ export default function DiagnosticEngine({ client, clientId, onUpdate }) {
   const [saved, setSaved] = useState(!!client?.diagnostic_result)
   const [showForm, setShowForm] = useState(!client?.diagnostic_result)
   const [dragOver, setDragOver] = useState(false)
+  const [showMeetingPrep, setShowMeetingPrep] = useState(false)
   const fileInputRef = React.useRef(null)
 
   useEffect(() => {
@@ -615,6 +616,7 @@ Based on all of the above, produce the comprehensive diagnostic JSON. Be specifi
               Diagnostic Results — {bn}
             </div>
             <div style={{ display: 'flex', gap: '.5rem' }}>
+              <button className="btn btn-primary" onClick={() => setShowMeetingPrep(true)}>Meeting prep →</button>
               {!saved && (
                 <button className="btn btn-gold" onClick={saveToClient} disabled={saving}>
                   {saving ? 'Saving...' : 'Save to client'}
@@ -627,6 +629,181 @@ Based on all of the above, produce the comprehensive diagnostic JSON. Be specifi
           <div dangerouslySetInnerHTML={{ __html: renderDiagnostic(result, bn) }} />
         </>
       )}
+
+      {showMeetingPrep && result && (
+        <MeetingPrepOverlay result={result} businessName={bn} onClose={() => setShowMeetingPrep(false)} />
+      )}
     </div>
   )
+}
+
+function MeetingPrepOverlay({ result, businessName, onClose }) {
+  const today = new Date().toLocaleDateString('en-NZ', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+
+  const printPrep = () => {
+    const win = window.open('', '_blank')
+    win.document.write(buildPrintHTML(result, businessName, today))
+    win.document.close()
+    setTimeout(() => { win.focus(); win.print() }, 300)
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'var(--warm)', zIndex: 2000, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
+      {/* Header bar */}
+      <div style={{ background: 'var(--dark)', padding: '.875rem 2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+        <div>
+          <div style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.1rem', color: '#F6F2EA', letterSpacing: '.06em' }}>Inara Collective</div>
+          <div style={{ fontSize: '.54rem', color: 'rgba(255,255,255,.32)', letterSpacing: '.18em', textTransform: 'uppercase', marginTop: '.1rem' }}>Meeting prep — {businessName}</div>
+        </div>
+        <div style={{ display: 'flex', gap: '.625rem' }}>
+          <button className="btn btn-gold" onClick={printPrep}>Print / Save PDF</button>
+          <button className="btn btn-ghost" style={{ color: 'rgba(255,255,255,.5)', borderColor: 'rgba(255,255,255,.15)' }} onClick={onClose}>Close</button>
+        </div>
+      </div>
+
+      <div style={{ flex: 1, overflow: 'auto', padding: '2rem 3rem', maxWidth: 860, width: '100%', margin: '0 auto' }}>
+        <div style={{ fontSize: '.58rem', color: 'var(--muted)', letterSpacing: '.12em', textTransform: 'uppercase', marginBottom: '2rem' }}>{today}</div>
+
+        {/* Opening line */}
+        {result.openingLine && (
+          <div style={{ background: 'var(--dark)', borderRadius: '12px', padding: '2rem 2.5rem', marginBottom: '2rem' }}>
+            <div style={{ fontSize: '.52rem', letterSpacing: '.2em', textTransform: 'uppercase', color: 'var(--gold)', fontWeight: 600, marginBottom: '.75rem' }}>Open the meeting with this</div>
+            <div style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.35rem', fontStyle: 'italic', color: '#F6F2EA', lineHeight: 1.75 }}>
+              &ldquo;{result.openingLine}&rdquo;
+            </div>
+          </div>
+        )}
+
+        {/* Conversation prompts */}
+        {result.conversationPrompts?.length > 0 && (
+          <div style={{ marginBottom: '2rem' }}>
+            <div style={{ fontSize: '.52rem', letterSpacing: '.2em', textTransform: 'uppercase', color: 'var(--muted)', fontWeight: 600, marginBottom: '1rem' }}>Questions to ask in the meeting</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '.875rem' }}>
+              {result.conversationPrompts.map((p, i) => (
+                <div key={i} style={{ background: 'var(--bg)', border: '.5px solid var(--border)', borderRadius: '10px', padding: '1.25rem 1.5rem', borderLeft: '3px solid var(--blue)' }}>
+                  <div style={{ fontSize: '.54rem', letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--blue)', fontWeight: 500, marginBottom: '.35rem' }}>Ask if: {p.trigger}</div>
+                  <div style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.05rem', fontStyle: 'italic', color: 'var(--dark)', lineHeight: 1.65, marginBottom: '.5rem' }}>&ldquo;{p.question}&rdquo;</div>
+                  <div style={{ fontSize: '.7rem', color: 'var(--muted)', lineHeight: 1.55 }}>{p.why}</div>
+                  <div style={{ marginTop: '.75rem', paddingTop: '.625rem', borderTop: '.5px solid var(--border)' }}>
+                    <div style={{ fontSize: '.52rem', letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '.25rem' }}>Notes</div>
+                    <div style={{ height: 36, borderBottom: '.5px solid var(--border)' }}></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="g2" style={{ gap: '1.25rem', marginBottom: '2rem' }}>
+          {/* Top 3 wins */}
+          {result.topThreeWins?.length > 0 && (
+            <div style={{ background: 'var(--teal-bg)', border: '.5px solid var(--teal-b)', borderRadius: '10px', padding: '1.25rem 1.5rem' }}>
+              <div style={{ fontSize: '.52rem', letterSpacing: '.2em', textTransform: 'uppercase', color: 'var(--teal)', fontWeight: 600, marginBottom: '.75rem' }}>Top 3 wins from working together</div>
+              {result.topThreeWins.map((w, i) => (
+                <div key={i} style={{ display: 'flex', gap: '.625rem', marginBottom: '.625rem' }}>
+                  <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--teal)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '.58rem', fontWeight: 600, flexShrink: 0, marginTop: 1 }}>{i + 1}</div>
+                  <div style={{ fontSize: '.82rem', color: 'var(--dark)', lineHeight: 1.6 }}>{w}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Opportunity statement */}
+          {result.opportunityStatement && (
+            <div style={{ background: 'var(--gold-bg)', border: '.5px solid var(--gold-b)', borderRadius: '10px', padding: '1.25rem 1.5rem', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ fontSize: '.52rem', letterSpacing: '.2em', textTransform: 'uppercase', color: 'var(--amber)', fontWeight: 600, marginBottom: '.75rem' }}>The opportunity statement</div>
+              <div style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1rem', fontStyle: 'italic', color: 'var(--dark)', lineHeight: 1.75, flex: 1 }}>{result.opportunityStatement}</div>
+              {result.closingStatement && (
+                <div style={{ marginTop: '.875rem', paddingTop: '.75rem', borderTop: '.5px solid var(--gold-b)', fontFamily: 'Cormorant Garamond, serif', fontSize: '.92rem', fontStyle: 'italic', color: 'var(--amber)', lineHeight: 1.65 }}>{result.closingStatement}</div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Score footer */}
+        <div style={{ background: 'var(--dark)', borderRadius: '10px', padding: '1rem 1.5rem', display: 'flex', alignItems: 'center', gap: '2rem' }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '2rem', color: result.totalScore >= 75 ? '#1A6B4A' : result.totalScore >= 50 ? '#B8956A' : '#8B2A1A', lineHeight: 1 }}>{result.totalScore}</div>
+            <div style={{ fontSize: '.52rem', color: 'rgba(255,255,255,.3)', letterSpacing: '.1em' }}>/100</div>
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1rem', color: '#F6F2EA', marginBottom: '.2rem' }}>{result.scoreLabel}</div>
+            <div style={{ fontSize: '.7rem', color: 'rgba(255,255,255,.4)', lineHeight: 1.5 }}>Leak stage: {result.leakStage}</div>
+          </div>
+          {result.recommendedPackage && (
+            <div style={{ background: 'rgba(184,149,106,.15)', border: '.5px solid rgba(184,149,106,.3)', borderRadius: '6px', padding: '.5rem 1rem' }}>
+              <div style={{ fontSize: '.5rem', color: 'rgba(184,149,106,.6)', letterSpacing: '.14em', textTransform: 'uppercase', marginBottom: '.15rem' }}>Recommended</div>
+              <div style={{ fontSize: '.82rem', color: 'var(--gold)', fontWeight: 500 }}>{result.recommendedPackage}</div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function buildPrintHTML(r, bn, today) {
+  const sc = r.totalScore || 0
+  const scCol = sc >= 75 ? '#1A6B4A' : sc >= 50 ? '#B8956A' : '#8B2A1A'
+  const prompts = r.conversationPrompts || []
+  const wins = r.topThreeWins || []
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8">
+<title>Meeting Prep — ${bn}</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:#fff;color:#1A1816;font-size:13px;padding:2.5cm}
+.hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:2rem;padding-bottom:1rem;border-bottom:1px solid #E0DAD0}
+.logo{font-family:'Cormorant Garamond',serif;font-size:1.1rem;letter-spacing:.06em}
+.logo-sub{font-size:.55rem;letter-spacing:.2em;text-transform:uppercase;color:#88847A;margin-top:.15rem}
+.date{font-size:.68rem;color:#88847A}
+.section-label{font-size:.52rem;letter-spacing:.2em;text-transform:uppercase;color:#88847A;font-weight:500;margin-bottom:.625rem}
+.opening-box{background:#1A1816;border-radius:8px;padding:1.5rem 2rem;margin-bottom:1.5rem}
+.opening-text{font-family:'Cormorant Garamond',serif;font-size:1.25rem;font-style:italic;color:#F6F2EA;line-height:1.75}
+.opening-label{font-size:.5rem;letter-spacing:.2em;text-transform:uppercase;color:#B8956A;margin-bottom:.625rem}
+.prompt-card{border:1px solid #E0DAD0;border-left:3px solid #1A3F6B;border-radius:6px;padding:1rem 1.25rem;margin-bottom:.875rem;break-inside:avoid}
+.prompt-trigger{font-size:.52rem;letter-spacing:.14em;text-transform:uppercase;color:#1A3F6B;font-weight:500;margin-bottom:.3rem}
+.prompt-q{font-family:'Cormorant Garamond',serif;font-size:1rem;font-style:italic;color:#1A1816;line-height:1.65;margin-bottom:.4rem}
+.prompt-why{font-size:.7rem;color:#88847A;line-height:1.5;margin-bottom:.625rem}
+.notes-line{border-bottom:1px solid #E0DAD0;height:28px;margin-bottom:.15rem}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem}
+.win-box{background:#EBF5EF;border:1px solid #A8D5BB;border-radius:8px;padding:1rem 1.25rem}
+.win-item{display:flex;gap:.5rem;margin-bottom:.5rem;font-size:.8rem;line-height:1.5;color:#1A1816}
+.win-num{width:18px;height:18px;border-radius:50%;background:#1A6B4A;color:white;display:flex;align-items:center;justify-content:center;font-size:.55rem;font-weight:600;flex-shrink:0;margin-top:1px}
+.opp-box{background:#FBF3E6;border:1px solid rgba(184,149,106,.3);border-radius:8px;padding:1rem 1.25rem}
+.opp-text{font-family:'Cormorant Garamond',serif;font-size:.95rem;font-style:italic;color:#1A1816;line-height:1.75}
+.footer{background:#1A1816;border-radius:8px;padding:.875rem 1.25rem;display:flex;align-items:center;gap:2rem;break-inside:avoid}
+.score-num{font-family:'Cormorant Garamond',serif;font-size:2rem;color:${scCol};line-height:1}
+.score-sub{font-size:.5rem;color:rgba(255,255,255,.3);letter-spacing:.1em}
+.score-label{font-family:'Cormorant Garamond',serif;font-size:.95rem;color:#F6F2EA;margin-bottom:.15rem}
+.score-detail{font-size:.65rem;color:rgba(255,255,255,.4)}
+.pkg-box{background:rgba(184,149,106,.15);border:1px solid rgba(184,149,106,.3);border-radius:6px;padding:.5rem .875rem;margin-left:auto}
+.pkg-label{font-size:.48rem;color:rgba(184,149,106,.6);letter-spacing:.14em;text-transform:uppercase;margin-bottom:.1rem}
+.pkg-name{font-size:.8rem;color:#B8956A;font-weight:500}
+</style></head><body>
+<div class="hdr">
+  <div><div class="logo">Inara Collective</div><div class="logo-sub">Meeting prep — ${bn}</div></div>
+  <div class="date">${today}</div>
+</div>
+${r.openingLine ? `<div class="section-label">Open the meeting with this</div>
+<div class="opening-box"><div class="opening-label">Opening line</div><div class="opening-text">&ldquo;${r.openingLine}&rdquo;</div></div>` : ''}
+${prompts.length ? `<div class="section-label" style="margin-bottom:.625rem">Questions to ask — write notes below each</div>
+${prompts.map((p, i) => `<div class="prompt-card">
+  <div class="prompt-trigger">Ask if: ${p.trigger || ''}</div>
+  <div class="prompt-q">&ldquo;${p.question || ''}&rdquo;</div>
+  <div class="prompt-why">${p.why || ''}</div>
+  <div class="notes-line"></div><div class="notes-line"></div>
+</div>`).join('')}` : ''}
+<div class="two-col">
+  ${wins.length ? `<div class="win-box"><div class="section-label" style="color:#1A6B4A">Top 3 wins from working together</div>
+  ${wins.map((w, i) => `<div class="win-item"><div class="win-num">${i + 1}</div><div>${w}</div></div>`).join('')}</div>` : '<div></div>'}
+  ${r.opportunityStatement ? `<div class="opp-box"><div class="section-label">Opportunity statement</div><div class="opp-text">${r.opportunityStatement}</div>
+  ${r.closingStatement ? `<div style="margin-top:.625rem;padding-top:.5rem;border-top:1px solid rgba(184,149,106,.25);font-family:'Cormorant Garamond',serif;font-size:.88rem;font-style:italic;color:#7A4F0A;line-height:1.65">${r.closingStatement}</div>` : ''}</div>` : '<div></div>'}
+</div>
+<div class="footer">
+  <div style="text-align:center"><div class="score-num">${sc}</div><div class="score-sub">/100</div></div>
+  <div><div class="score-label">${r.scoreLabel || ''}</div><div class="score-detail">Leak stage: ${r.leakStage || ''}</div></div>
+  ${r.recommendedPackage ? `<div class="pkg-box"><div class="pkg-label">Recommended</div><div class="pkg-name">${r.recommendedPackage}</div></div>` : ''}
+</div>
+</body></html>`
 }
