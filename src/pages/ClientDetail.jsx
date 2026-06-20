@@ -147,7 +147,7 @@ export default function ClientDetail() {
   const addMod = async (name, priority) => { const m = await addClientModule({client_id:id,module_name:name,priority,status:'Active'}); setModules(p=>[...p,m]); setShowModAdd(false) }
   const togMod = async (m) => { const u = await updateClientModule(m.id,{status:m.status==='Active'?'Paused':'Active'}); setModules(p=>p.map(x=>x.id===m.id?u:x)) }
   const delMod = async (mid) => { await deleteClientModule(mid); setModules(p=>p.filter(m=>m.id!==mid)) }
-  const addTsk = async () => { const t = await createTask({client_id:id,name:'New task',status:'Now'}); setTasks(p=>[...p,t]); setExpandedTask(t.id) }
+  const addTsk = async () => { const t = await createTask({client_id:id,name:'New task',status:'Now'}); setTasks(p=>[...p,t]); setTaskFilter('To Do Now'); setExpandedTask(t.id) }
   const updTsk = async (tid,field,value) => { setTasks(p=>p.map(t=>t.id===tid?{...t,[field]:value}:t)); try { await updateTask(tid,{[field]:value}) } catch(e){console.error(e)} }
   const delTsk = async (tid) => { await deleteTask(tid); setTasks(p=>p.filter(t=>t.id!==tid)) }
   const addTskToStatus = async (status) => { const t = await createTask({ client_id:id, name:'New task', status }); setTasks(p=>[...p,t]); setExpandedTask(t.id) }
@@ -593,70 +593,75 @@ export default function ClientDetail() {
 
         {/* ── TASKS ── */}
         {tab==='tasks'&&(
-          <div style={{ maxWidth:680 }}>
-            {/* Header row */}
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'1.25rem' }}>
-              <div>
-                {(() => {
-                  const done = tasks.filter(t=>t.status==='Done')
-                  const earnedPts = done.reduce((s,t)=>s+(t.points||10),0)
-                  const totalPts = tasks.reduce((s,t)=>s+(t.points||10),0)
-                  return totalPts > 0 ? (
-                    <div style={{ display:'flex', alignItems:'center', gap:'.75rem' }}>
-                      <div style={{ fontSize:'.78rem', fontWeight:700, color:'var(--muted)', letterSpacing:'.06em', textTransform:'uppercase' }}>Lead Progress</div>
-                      <div style={{ display:'flex', alignItems:'center', gap:'.5rem' }}>
-                        <div style={{ width:120, height:6, background:'var(--border)', borderRadius:'3px', overflow:'hidden' }}>
-                          <div style={{ height:'100%', borderRadius:'3px', background:'var(--mist-blue)', width:`${Math.round((earnedPts/totalPts)*100)}%`, transition:'width .4s' }}/>
-                        </div>
-                        <span style={{ fontSize:'.82rem', fontWeight:600, color:'var(--dark)' }}>{earnedPts} / {totalPts} pts</span>
-                      </div>
-                    </div>
-                  ) : null
-                })()}
+          <div style={{ display:'flex', gap:'1.75rem', alignItems:'flex-start' }}>
+
+            {/* ── Left: vertical filters ── */}
+            <div style={{ width:190, flexShrink:0, position:'sticky', top:0 }}>
+              {/* Add task button */}
+              <button className="btn btn-primary" style={{ width:'100%', marginBottom:'1.25rem', justifyContent:'center' }} onClick={addTsk}>+ Add task</button>
+
+              {/* Filter list */}
+              <div style={{ display:'flex', flexDirection:'column', gap:'.3rem' }}>
+                {TASK_FILTER_LABELS.map(f => {
+                  const count = getFilteredTasks(f).length
+                  const active = taskFilter === f
+                  return (
+                    <button key={f} onClick={()=>setTaskFilter(f)} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'.55rem .875rem', borderRadius:'10px', fontSize:'.9rem', fontWeight: active ? 700 : 400, cursor:'pointer', fontFamily:'inherit', border: 'none', background: active ? 'var(--pale-cloud)' : 'transparent', color: active ? '#2E6080' : 'var(--muted)', transition:'all .12s', textAlign:'left' }}
+                      onMouseEnter={e=>{ if(!active) e.currentTarget.style.background='rgba(0,0,0,.04)' }}
+                      onMouseLeave={e=>{ if(!active) e.currentTarget.style.background='transparent' }}
+                    >
+                      <span>{f}</span>
+                      {count > 0 && <span style={{ fontSize:'.78rem', fontWeight:600, background: active ? 'rgba(46,96,128,.15)' : 'var(--border)', color: active ? '#2E6080' : 'var(--muted)', borderRadius:'999px', padding:'.05rem .5rem', minWidth:22, textAlign:'center' }}>{count}</span>}
+                    </button>
+                  )
+                })}
               </div>
-              <button className="btn btn-primary btn-sm" onClick={addTsk}>+ Add task</button>
-            </div>
 
-            {/* Filter pills */}
-            <div style={{ display:'flex', flexWrap:'wrap', gap:'.5rem', marginBottom:'1.5rem' }}>
-              {TASK_FILTER_LABELS.map(f => {
-                const count = getFilteredTasks(f).length
-                const active = taskFilter === f
+              {/* Lead progress */}
+              {(() => {
+                const done = tasks.filter(t=>t.status==='Done')
+                const earned = done.reduce((s,t)=>s+(t.points||10),0)
+                const total = tasks.reduce((s,t)=>s+(t.points||10),0)
+                if (!total) return null
                 return (
-                  <button key={f} onClick={()=>setTaskFilter(f)} style={{ padding:'.4rem 1rem', borderRadius:'999px', fontSize:'.875rem', fontWeight: active ? 700 : 500, cursor:'pointer', fontFamily:'inherit', border: active ? '1.5px solid var(--mist-blue)' : '1.5px solid var(--border)', background: active ? 'var(--pale-cloud)' : 'transparent', color: active ? '#2E6080' : 'var(--muted)', transition:'all .14s', whiteSpace:'nowrap' }}>
-                    {f}{count > 0 ? <span style={{ marginLeft:'.4rem', fontSize:'.78rem', opacity:.7 }}>{count}</span> : null}
-                  </button>
+                  <div style={{ marginTop:'1.5rem', padding:'1rem', background:'var(--warm)', border:'.5px solid var(--border)', borderRadius:'12px' }}>
+                    <div style={{ fontSize:'.7rem', fontWeight:700, color:'var(--muted)', letterSpacing:'.08em', textTransform:'uppercase', marginBottom:'.625rem' }}>Lead Progress</div>
+                    <div style={{ height:6, background:'var(--border)', borderRadius:'3px', overflow:'hidden', marginBottom:'.5rem' }}>
+                      <div style={{ height:'100%', borderRadius:'3px', background:'var(--mist-blue)', width:`${Math.round((earned/total)*100)}%`, transition:'width .4s' }}/>
+                    </div>
+                    <div style={{ fontSize:'.85rem', fontWeight:600, color:'var(--dark)' }}>{earned} / {total} pts</div>
+                  </div>
                 )
-              })}
+              })()}
+
+              {/* Task flow generator */}
+              <div style={{ marginTop:'1.25rem', padding:'1rem', background:'var(--warm)', border:'.5px solid var(--border)', borderRadius:'12px' }}>
+                <div style={{ fontSize:'.7rem', fontWeight:700, color:'var(--muted)', letterSpacing:'.08em', textTransform:'uppercase', marginBottom:'.625rem' }}>Generate tasks</div>
+                <select className="form-select" style={{ marginBottom:'.625rem' }} value={taskFlow} onChange={e=>setTaskFlow(e.target.value)}>
+                  <option value="">— choose stage —</option>
+                  {Object.keys(STAGE_TASK_FLOWS).map(k=><option key={k}>{k}</option>)}
+                </select>
+                {taskFlow && (
+                  <button className="btn btn-primary btn-sm" style={{ width:'100%', justifyContent:'center' }} onClick={applyTaskFlow} disabled={addingFlow}>{addingFlow?'Adding…':`Add ${STAGE_TASK_FLOWS[taskFlow].length} tasks`}</button>
+                )}
+              </div>
             </div>
 
-            {/* Task flow generator */}
-            <div style={{ background:'var(--warm)', border:'.5px solid var(--border)', borderRadius:'12px', padding:'.875rem 1.125rem', marginBottom:'1.5rem', display:'flex', alignItems:'center', gap:'.75rem', flexWrap:'wrap' }}>
-              <span style={{ fontSize:'.72rem', letterSpacing:'.1em', textTransform:'uppercase', color:'var(--muted)', fontWeight:600, flexShrink:0 }}>Generate tasks for</span>
-              <select className="form-select" style={{ flex:1, minWidth:160, maxWidth:240 }} value={taskFlow} onChange={e=>setTaskFlow(e.target.value)}>
-                <option value="">— choose a stage —</option>
-                {Object.keys(STAGE_TASK_FLOWS).map(k=><option key={k}>{k}</option>)}
-              </select>
-              {taskFlow && (
-                <>
-                  <div style={{ fontSize:'.82rem', color:'var(--muted)' }}>{STAGE_TASK_FLOWS[taskFlow].length} tasks</div>
-                  <button className="btn btn-primary btn-sm" onClick={applyTaskFlow} disabled={addingFlow}>{addingFlow?'Adding…':'Add tasks'}</button>
-                </>
-              )}
+            {/* ── Right: task cards ── */}
+            <div style={{ flex:1, minWidth:0 }}>
+              {(() => {
+                const filtered = getFilteredTasks(taskFilter)
+                if (filtered.length === 0) return (
+                  <div style={{ textAlign:'center', padding:'4rem 1rem' }}>
+                    <div style={{ fontSize:'1.75rem', marginBottom:'.875rem', opacity:.2 }}>✓</div>
+                    <div style={{ fontFamily:'Cormorant Garamond, Georgia, serif', fontSize:'1.4rem', color:'var(--muted)', marginBottom:'.5rem' }}>Nothing here</div>
+                    <div style={{ fontSize:'.9rem', color:'var(--muted)' }}>No tasks match this filter.</div>
+                  </div>
+                )
+                return filtered.map(task => <TaskCard key={task.id} task={task}/>)
+              })()}
             </div>
 
-            {/* Task list */}
-            {(() => {
-              const filtered = getFilteredTasks(taskFilter)
-              if (filtered.length === 0) return (
-                <div style={{ textAlign:'center', padding:'3.5rem 1rem' }}>
-                  <div style={{ fontSize:'1.5rem', marginBottom:'.75rem', opacity:.25 }}>✓</div>
-                  <div style={{ fontFamily:'Cormorant Garamond, Georgia, serif', fontSize:'1.35rem', color:'var(--muted)', marginBottom:'.5rem' }}>Nothing here</div>
-                  <div style={{ fontSize:'.9rem', color:'var(--muted)' }}>No tasks match this filter right now.</div>
-                </div>
-              )
-              return filtered.map(task => <TaskCard key={task.id} task={task}/>)
-            })()}
           </div>
         )}
 
