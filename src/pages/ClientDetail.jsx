@@ -123,7 +123,7 @@ export default function ClientDetail() {
 
   const [taskFlow, setTaskFlow] = useState('')
   const [addingFlow, setAddingFlow] = useState(false)
-  const [expandedTask, setExpandedTask] = useState(null)
+  const [selectedTask, setSelectedTask] = useState(null)
   const [taskFilter, setTaskFilter] = useState('To Do Now')
 
   useEffect(() => {
@@ -147,10 +147,9 @@ export default function ClientDetail() {
   const addMod = async (name, priority) => { const m = await addClientModule({client_id:id,module_name:name,priority,status:'Active'}); setModules(p=>[...p,m]); setShowModAdd(false) }
   const togMod = async (m) => { const u = await updateClientModule(m.id,{status:m.status==='Active'?'Paused':'Active'}); setModules(p=>p.map(x=>x.id===m.id?u:x)) }
   const delMod = async (mid) => { await deleteClientModule(mid); setModules(p=>p.filter(m=>m.id!==mid)) }
-  const addTsk = async () => { const t = await createTask({client_id:id,name:'New task',status:'Now'}); setTasks(p=>[...p,t]); setTaskFilter('To Do Now'); setExpandedTask(t.id) }
+  const addTsk = async () => { const t = await createTask({client_id:id,name:'New task',status:'Now'}); setTasks(p=>[...p,t]); setTaskFilter('To Do Now'); setSelectedTask(t.id) }
   const updTsk = async (tid,field,value) => { setTasks(p=>p.map(t=>t.id===tid?{...t,[field]:value}:t)); try { await updateTask(tid,{[field]:value}) } catch(e){console.error(e)} }
   const delTsk = async (tid) => { await deleteTask(tid); setTasks(p=>p.filter(t=>t.id!==tid)) }
-  const addTskToStatus = async (status) => { const t = await createTask({ client_id:id, name:'New task', status }); setTasks(p=>[...p,t]); setExpandedTask(t.id) }
 
   const applyTaskFlow = async () => {
     if (!taskFlow || addingFlow) return
@@ -226,225 +225,213 @@ export default function ClientDetail() {
   if (!client) return <div className="page"><div className="empty"><div className="empty-title">Client not found</div></div></div>
 
   const taskStatusColors = { 'Today':'#2E6080', 'Now':'#9FBBD0', 'Soon':'#BEB4AA', 'Waiting':'#A6AAB5', 'Done':'#7A8090' }
-  const TASK_FILTER_LABELS = ['To Do Now','Up Next','Due Now','Due This Week','Waiting','Follow Up','High Value','Quick Wins','Done']
+  const TASK_FILTER_LABELS = ['To Do Now','Up Next','Due Now','Due This Week','Waiting','Follow Up','High Value','Quick Wins','Relationship Builder','Done']
 
   function getFilteredTasks(filter) {
     const now = new Date().toISOString().split('T')[0]
     const in7 = new Date(Date.now() + 7*24*60*60*1000).toISOString().split('T')[0]
-    const kw = ['follow','check in','message','reminder','reach','touch','contact','call','email','invite']
+    const followKw = ['follow','check in','message','reminder','reach','touch','dm']
+    const relKw = ['coffee','lunch','invite','connect','relationship','intro','warm','call']
     switch(filter) {
-      case 'To Do Now': return tasks.filter(t => t.status === 'Today' || t.status === 'Now')
-      case 'Up Next':   return tasks.filter(t => t.status === 'Soon')
-      case 'Due Now':   return tasks.filter(t => t.due_date && t.due_date <= now && t.status !== 'Done')
+      case 'To Do Now':  return tasks.filter(t => t.status === 'Today' || t.status === 'Now')
+      case 'Up Next':    return tasks.filter(t => t.status === 'Soon')
+      case 'Due Now':    return tasks.filter(t => t.due_date && t.due_date <= now && t.status !== 'Done')
       case 'Due This Week': return tasks.filter(t => t.due_date && t.due_date >= now && t.due_date <= in7 && t.status !== 'Done')
-      case 'Waiting':   return tasks.filter(t => t.status === 'Waiting')
-      case 'Follow Up': return tasks.filter(t => t.status !== 'Done' && kw.some(k => (t.name||'').toLowerCase().includes(k)))
+      case 'Waiting':    return tasks.filter(t => t.status === 'Waiting')
+      case 'Follow Up':  return tasks.filter(t => t.status !== 'Done' && followKw.some(k => (t.name||'').toLowerCase().includes(k)))
       case 'High Value': return tasks.filter(t => t.status !== 'Done' && (t.points||10) >= 25)
       case 'Quick Wins': return tasks.filter(t => t.status !== 'Done' && (t.points||10) <= 15)
-      case 'Done':      return tasks.filter(t => t.status === 'Done')
-      default:          return tasks
+      case 'Relationship Builder': return tasks.filter(t => t.status !== 'Done' && relKw.some(k => (t.name||'').toLowerCase().includes(k)))
+      case 'Done':       return tasks.filter(t => t.status === 'Done')
+      default:           return tasks
     }
   }
 
-  function TaskCard({ task }) {
-    const isEditing = expandedTask === task.id
-    const [showScript, setShowScript] = useState(false)
-    const col = taskStatusColors[task.status] || '#A6AAB5'
+  function getTaskIcon(name) {
+    const n = (name||'').toLowerCase()
+    if (n.includes('call') || n.includes('phone')) return '📞'
+    if (n.includes('email') || n.includes('follow-up email')) return '✉️'
+    if (n.includes('message') || n.includes('check in') || n.includes('dm')) return '💬'
+    if (n.includes('book') || n.includes('meeting') || n.includes('session') || n.includes('schedule')) return '🗓'
+    if (n.includes('proposal') || n.includes('send proposal') || n.includes('draft')) return '📄'
+    if (n.includes('coffee') || n.includes('lunch') || n.includes('invite')) return '☕'
+    return '✓'
+  }
+
+  function dueBadge(dateStr) {
+    if (!dateStr) return null
+    const d = new Date(dateStr + 'T00:00')
+    const t = new Date(); t.setHours(0,0,0,0)
+    const diff = Math.round((d-t)/(1000*60*60*24))
+    if (diff < 0) return { text:'Overdue', color:'var(--red)', bold:true }
+    if (diff === 0) return { text:'Due Today', color:'var(--red)', bold:true }
+    if (diff === 1) return { text:'Due Tomorrow', color:'var(--amber)', bold:false }
+    if (diff <= 7) return { text:'Due This Week', color:'var(--muted)', bold:false }
+    return { text:`Due ${d.toLocaleDateString('en-NZ',{day:'numeric',month:'short'})}`, color:'var(--muted)', bold:false }
+  }
+
+  function TaskListItem({ task, selected, onSelect }) {
     const pts = task.points || 10
-    const todayStr = new Date().toISOString().split('T')[0]
-    const isOverdue = task.due_date && task.due_date < todayStr && task.status !== 'Done'
     const isDone = task.status === 'Done'
-
-    const fmtDue = (str) => {
-      if (!str) return null
-      return new Date(str + 'T00:00').toLocaleDateString('en-NZ', { weekday:'long', day:'numeric', month:'long' })
-    }
-    const copyText = (text) => { try { navigator.clipboard.writeText(text) } catch(e) {} }
-
+    const due = dueBadge(task.due_date)
     return (
-      <div style={{ background:'#FFFFFF', border:'1px solid var(--border)', borderRadius:'20px', marginBottom:'1.5rem', boxShadow:'0 8px 24px rgba(0,0,0,.06)', overflow:'hidden', opacity: isDone ? 0.65 : 1 }}>
-        {isEditing ? (
-          /* ── Edit mode ── */
-          <div style={{ padding:'1.75rem', display:'flex', flexDirection:'column', gap:'1rem' }}>
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-              <span style={{ fontSize:'.72rem', fontWeight:700, color:'var(--muted)', letterSpacing:'.1em', textTransform:'uppercase' }}>Edit task</span>
-              <button className="btn btn-ghost btn-xs" onClick={()=>setExpandedTask(null)}>Done</button>
-            </div>
-
-            <input className="form-input" style={{ fontWeight:700, fontSize:'1.05rem' }} defaultValue={task.name} onBlur={e=>updTsk(task.id,'name',e.target.value)} autoFocus placeholder="Task name…"/>
-
-            {/* Status pills */}
-            <div>
-              <div style={{ fontSize:'.72rem', fontWeight:700, color:'var(--muted)', letterSpacing:'.1em', textTransform:'uppercase', marginBottom:'.5rem' }}>Status</div>
-              <div style={{ display:'flex', flexWrap:'wrap', gap:'.4rem' }}>
-                {TASK_STATUSES.map(s=>{ const c=taskStatusColors[s]||'#A6AAB5'; return (
-                  <button key={s} onClick={()=>updTsk(task.id,'status',s)} style={{ padding:'.3rem .875rem', borderRadius:'999px', fontSize:'.85rem', cursor:'pointer', background:task.status===s?`${c}22`:'transparent', color:task.status===s?c:'var(--muted)', border:`1.5px solid ${task.status===s?c+'66':'var(--border)'}`, fontWeight:task.status===s?700:500, fontFamily:'inherit' }}>{s}</button>
-                )})}
-              </div>
-            </div>
-
-            {/* Due + owner */}
-            <div style={{ display:'flex', gap:'.625rem' }}>
-              <div style={{ flex:1 }}>
-                <div style={{ fontSize:'.72rem', fontWeight:700, color:'var(--muted)', letterSpacing:'.1em', textTransform:'uppercase', marginBottom:'.4rem' }}>Due date</div>
-                <input type="date" className="form-input" value={task.due_date||''} onChange={e=>updTsk(task.id,'due_date',e.target.value)}/>
-              </div>
-              <div style={{ flex:1 }}>
-                <div style={{ fontSize:'.72rem', fontWeight:700, color:'var(--muted)', letterSpacing:'.1em', textTransform:'uppercase', marginBottom:'.4rem' }}>Owner</div>
-                <select className="form-select" value={task.owner||''} onChange={e=>updTsk(task.id,'owner',e.target.value)}>
-                  <option value="">— Owner —</option>
-                  {TASK_OWNERS.map(o=><option key={o}>{o}</option>)}
-                </select>
-              </div>
-            </div>
-
-            {/* Points */}
-            <div>
-              <div style={{ fontSize:'.72rem', fontWeight:700, color:'var(--muted)', letterSpacing:'.1em', textTransform:'uppercase', marginBottom:'.4rem' }}>Points</div>
-              <select className="form-select" value={task.points||10} onChange={e=>updTsk(task.id,'points',parseInt(e.target.value))}>
-                {[5,10,15,20,25,30,50,100].map(p=>(
-                  <option key={p} value={p}>+{p} pts — {p<=5?'Quick admin':p<=10?'Short message':p<=15?'Send email':p<=20?'Phone call':p<=25?'Book meeting':p<=30?'Send proposal':p<=50?'Proposal accepted':'Client onboarded'}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Discussion point */}
-            <div>
-              <div style={{ fontSize:'.72rem', fontWeight:700, color:'var(--muted)', letterSpacing:'.1em', textTransform:'uppercase', marginBottom:'.4rem' }}>Discussion point</div>
-              <textarea className="form-textarea" style={{ minHeight:72 }} defaultValue={task.discussion_point||''} onBlur={e=>updTsk(task.id,'discussion_point',e.target.value)} placeholder="What to focus on or talk about…"/>
-            </div>
-
-            {/* Where this leads */}
-            <div>
-              <div style={{ fontSize:'.72rem', fontWeight:700, color:'var(--muted)', letterSpacing:'.1em', textTransform:'uppercase', marginBottom:'.4rem' }}>Where this leads</div>
-              <textarea className="form-textarea" style={{ minHeight:64 }} defaultValue={task.where_this_leads||''} onBlur={e=>updTsk(task.id,'where_this_leads',e.target.value)} placeholder="The outcome or purpose of this task…"/>
-            </div>
-
-            {/* Next tiny step */}
-            <div>
-              <div style={{ fontSize:'.72rem', fontWeight:700, color:'var(--muted)', letterSpacing:'.1em', textTransform:'uppercase', marginBottom:'.4rem' }}>Next tiny step</div>
-              <input className="form-input" defaultValue={task.next_step||''} onBlur={e=>updTsk(task.id,'next_step',e.target.value)} placeholder="The smallest first action…"/>
-            </div>
-
-            {/* Script */}
-            <div>
-              <div style={{ fontSize:'.72rem', fontWeight:700, color:'var(--muted)', letterSpacing:'.1em', textTransform:'uppercase', marginBottom:'.4rem' }}>Script / Email / Message Draft</div>
-              <textarea className="form-textarea" style={{ minHeight:130, lineHeight:1.75 }} defaultValue={task.script||''} onBlur={e=>updTsk(task.id,'script',e.target.value)} placeholder="Paste a call script, email draft, or message template here…"/>
-            </div>
-
-            {/* Progress dots */}
-            <div>
-              <div style={{ fontSize:'.72rem', fontWeight:700, color:'var(--muted)', letterSpacing:'.1em', textTransform:'uppercase', marginBottom:'.5rem' }}>Progress</div>
-              <div style={{ display:'flex', alignItems:'center', gap:'.625rem' }}>
-                <div style={{ display:'flex', gap:'.4rem' }}>
-                  {Array.from({length:task.progress_total||5},(_,i)=>(
-                    <button key={i} onClick={()=>updTsk(task.id,'progress_current',i+1===(task.progress_current||0)?i:i+1)} style={{ width:14, height:14, borderRadius:'50%', border:'none', cursor:'pointer', background:i<(task.progress_current||0)?col:'var(--border)', padding:0 }}/>
-                  ))}
-                </div>
-                <span style={{ fontSize:'.82rem', color:'var(--muted)' }}>{task.progress_current||0} of {task.progress_total||5}</span>
-              </div>
-            </div>
-
-            <button className="btn btn-danger btn-xs" style={{ alignSelf:'flex-start' }} onClick={()=>{ delTsk(task.id); setExpandedTask(null) }}>Delete task</button>
-          </div>
-        ) : (
-          /* ── Display mode ── */
-          <div style={{ padding:'1.75rem' }}>
-            {/* Header: status + points + menu */}
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'1.25rem' }}>
-              <span style={{ background:`${col}22`, color:col, border:`1px solid ${col}66`, borderRadius:'999px', padding:'.3rem .875rem', fontSize:'.82rem', fontWeight:700 }}>{task.status}</span>
-              <div style={{ display:'flex', alignItems:'center', gap:'.5rem' }}>
-                <span style={{ background:'var(--pale-cloud)', color:'#2E6080', borderRadius:'999px', padding:'.28rem .75rem', fontSize:'.82rem', fontWeight:600 }}>+{pts} pts</span>
-                <button onClick={()=>setExpandedTask(task.id)} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--muted)', fontSize:'1.25rem', padding:'.1rem .3rem', lineHeight:1 }}>⋯</button>
-              </div>
-            </div>
-
-            {/* Task name */}
-            <div style={{ fontSize:'1.15rem', fontWeight:700, color: isDone ? 'var(--muted)' : 'var(--dark)', lineHeight:1.4, marginBottom:task.due_date?'.75rem':'1.25rem', textDecoration: isDone ? 'line-through' : 'none' }}>
-              {task.name}
-            </div>
-
-            {/* Due date */}
-            {task.due_date && (
-              <div style={{ display:'flex', alignItems:'center', gap:'.5rem', fontSize:'.9rem', color: isOverdue ? 'var(--red)' : 'var(--muted)', marginBottom:'1.25rem' }}>
-                <span>📅</span>
-                <span style={{ fontWeight: isOverdue ? 700 : 400 }}>{isOverdue ? 'Overdue — ' : 'Due: '}{fmtDue(task.due_date)}</span>
-              </div>
-            )}
-
-            <div style={{ height:'1px', background:'var(--border)', margin:'1.25rem 0' }}/>
-
-            {/* Discussion point */}
-            {task.discussion_point && (
-              <div style={{ marginBottom:'1.25rem' }}>
-                <div style={{ fontSize:'.72rem', fontWeight:700, color:'var(--muted)', letterSpacing:'.1em', textTransform:'uppercase', marginBottom:'.5rem' }}>Discussion point</div>
-                <div style={{ fontSize:'1rem', lineHeight:1.65, color:'var(--dark)' }}>{task.discussion_point}</div>
-              </div>
-            )}
-
-            {/* Where this leads */}
-            {task.where_this_leads && (
-              <div style={{ marginBottom:'1.25rem', padding:'1rem 1.25rem', background:'var(--bg)', borderRadius:'12px', border:'.5px solid var(--border)' }}>
-                <div style={{ fontSize:'.72rem', fontWeight:700, color:'var(--muted)', letterSpacing:'.1em', textTransform:'uppercase', marginBottom:'.4rem' }}>Where this leads</div>
-                <div style={{ fontSize:'1rem', lineHeight:1.65, color:'var(--dark)' }}>{task.where_this_leads}</div>
-              </div>
-            )}
-
-            {(task.discussion_point || task.where_this_leads) && (
-              <div style={{ height:'1px', background:'var(--border)', margin:'1.25rem 0' }}/>
-            )}
-
-            {/* Script / Draft (expandable) */}
-            {task.script && (
-              <>
-                <div style={{ marginBottom:'1.25rem' }}>
-                  <button onClick={()=>setShowScript(s=>!s)} style={{ background:'none', border:'none', cursor:'pointer', display:'flex', alignItems:'center', gap:'.4rem', padding:0, marginBottom: showScript ? '.875rem' : 0 }}>
-                    <span style={{ color: showScript ? 'var(--dark)' : 'var(--mist-blue)', fontSize:'.9rem' }}>{showScript ? '▾' : '▸'}</span>
-                    <span style={{ fontSize:'.82rem', fontWeight:700, color: showScript ? 'var(--muted)' : 'var(--mist-blue)', letterSpacing:'.1em', textTransform:'uppercase' }}>Script / Draft</span>
-                  </button>
-                  {showScript && (
-                    <div style={{ background:'var(--bg)', borderRadius:'12px', padding:'1.25rem 1.5rem', fontSize:'.95rem', lineHeight:1.8, color:'var(--dark)', whiteSpace:'pre-wrap', fontFamily:'inherit', border:'.5px solid var(--border)' }}>
-                      {task.script}
-                    </div>
-                  )}
-                </div>
-                <div style={{ height:'1px', background:'var(--border)', margin:'1.25rem 0' }}/>
-              </>
-            )}
-
-            {/* Next tiny step */}
-            <div style={{ marginBottom:'1.5rem' }}>
-              <div style={{ fontSize:'.72rem', fontWeight:700, color:'var(--muted)', letterSpacing:'.1em', textTransform:'uppercase', marginBottom:'.5rem' }}>Next tiny step</div>
-              {task.next_step ? (
-                <div style={{ display:'flex', alignItems:'flex-start', gap:'.625rem' }}>
-                  <span style={{ color:'var(--mist-blue)', flexShrink:0, marginTop:'.15rem' }}>▶</span>
-                  <span style={{ fontSize:'1rem', color:'var(--mist-blue)', lineHeight:1.6, fontWeight:500 }}>{task.next_step}</span>
-                </div>
-              ) : (
-                <button onClick={()=>setExpandedTask(task.id)} style={{ background:'none', border:'none', cursor:'pointer', display:'flex', alignItems:'center', gap:'.5rem', padding:0 }}>
-                  <span style={{ color:'var(--border)' }}>▶</span>
-                  <span style={{ fontSize:'.9rem', color:'var(--muted)', fontStyle:'italic' }}>Add next step…</span>
-                </button>
-              )}
-            </div>
-
-            {/* Action buttons */}
-            {!isDone ? (
-              <div style={{ display:'flex', gap:'.625rem', flexWrap:'wrap' }}>
-                <button onClick={()=>updTsk(task.id,'status','Done')} style={{ flex:1, minWidth:110, background:'var(--dark)', color:'#fff', border:'none', borderRadius:'12px', padding:'.875rem 1rem', fontSize:'1rem', fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>✓ Mark Done</button>
-                {task.script && (
-                  <button onClick={()=>copyText(task.script)} style={{ flex:1, minWidth:110, background:'transparent', color:'var(--dark)', border:'1.5px solid var(--border)', borderRadius:'12px', padding:'.875rem 1rem', fontSize:'1rem', fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>Copy Script</button>
-                )}
-                <button onClick={()=>setExpandedTask(task.id)} style={{ flex:1, minWidth:100, background:'transparent', color:'var(--dark)', border:'1.5px solid var(--border)', borderRadius:'12px', padding:'.875rem 1rem', fontSize:'1rem', fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>✎ Edit</button>
-              </div>
-            ) : (
-              <button onClick={()=>updTsk(task.id,'status','Now')} style={{ background:'transparent', color:'var(--muted)', border:'1px solid var(--border)', borderRadius:'12px', padding:'.5rem 1.25rem', fontSize:'.9rem', cursor:'pointer', fontFamily:'inherit' }}>↩ Reopen</button>
-            )}
-          </div>
-        )}
+      <div onClick={onSelect} style={{ display:'flex', alignItems:'center', gap:'.875rem', background: selected ? 'var(--pale-cloud)' : '#FFFFFF', border:`1.5px solid ${selected?'var(--mist-blue)':'var(--border)'}`, borderRadius:'14px', padding:'.875rem 1rem', marginBottom:'.625rem', cursor:'pointer', transition:'all .12s', opacity: isDone ? 0.6 : 1 }}
+        onMouseEnter={e=>{ if(!selected){ e.currentTarget.style.borderColor='var(--mist-blue)'; e.currentTarget.style.background='#fafcfe' }}}
+        onMouseLeave={e=>{ if(!selected){ e.currentTarget.style.borderColor='var(--border)'; e.currentTarget.style.background='#FFFFFF' }}}
+      >
+        <div style={{ width:42, height:42, borderRadius:'11px', background: selected ? 'rgba(159,187,208,.2)' : 'var(--bg)', border:`.5px solid ${selected?'rgba(159,187,208,.3)':'var(--border)'}`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:'1.05rem', flexShrink:0 }}>
+          {getTaskIcon(task.name)}
+        </div>
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ fontSize:'.95rem', fontWeight:700, color:isDone?'var(--muted)':'var(--dark)', textDecoration:isDone?'line-through':'none', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', marginBottom:'.2rem' }}>{task.name}</div>
+          {task.discussion_point && <div style={{ fontSize:'.8rem', color:'var(--muted)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', marginBottom:'.3rem' }}>{task.discussion_point}</div>}
+          {due && <div style={{ display:'flex', alignItems:'center', gap:'.3rem', fontSize:'.78rem', color:due.color, fontWeight:due.bold?700:400 }}>📅 {due.text}</div>}
+        </div>
+        <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:'.35rem', flexShrink:0 }}>
+          <span style={{ background:'var(--pale-cloud)', color:'#2E6080', borderRadius:'999px', padding:'.18rem .6rem', fontSize:'.78rem', fontWeight:600 }}>+{pts} pts</span>
+          <span style={{ color:'var(--muted)', fontSize:'1.1rem', lineHeight:1 }}>›</span>
+        </div>
       </div>
     )
   }
+
+  function TaskDetailPanel({ task, onClose }) {
+    const [editMode, setEditMode] = useState(false)
+    const col = taskStatusColors[task.status] || '#A6AAB5'
+    const pts = task.points || 10
+    const due = dueBadge(task.due_date)
+    const copyText = (t) => { try { navigator.clipboard.writeText(t) } catch(e) {} }
+    const n = (task.name||'').toLowerCase()
+    const primaryLabel = n.includes('call')||n.includes('phone') ? '📞 Start Call'
+      : n.includes('email') ? '✉ Send Email'
+      : n.includes('message')||n.includes('dm') ? '💬 Copy Message'
+      : '✓ Mark Done'
+    const isCallType = n.includes('call')||n.includes('phone')||n.includes('email')||n.includes('message')||n.includes('dm')
+
+    if (editMode) return (
+      <div style={{ padding:'1.75rem', display:'flex', flexDirection:'column', gap:'.875rem', overflowY:'auto', maxHeight:'calc(100vh - 240px)' }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <span style={{ fontSize:'.72rem', fontWeight:700, color:'var(--muted)', letterSpacing:'.1em', textTransform:'uppercase' }}>Edit task</span>
+          <div style={{ display:'flex', gap:'.5rem' }}>
+            <button className="btn btn-ghost btn-xs" onClick={()=>setEditMode(false)}>← Back</button>
+            <button className="btn btn-ghost btn-xs" onClick={onClose}>✕</button>
+          </div>
+        </div>
+        <input className="form-input" style={{ fontWeight:700, fontSize:'1.05rem' }} defaultValue={task.name} onBlur={e=>updTsk(task.id,'name',e.target.value)} autoFocus placeholder="Task name…"/>
+        <div>
+          <div style={{ fontSize:'.72rem', fontWeight:700, color:'var(--muted)', letterSpacing:'.1em', textTransform:'uppercase', marginBottom:'.5rem' }}>Status</div>
+          <div style={{ display:'flex', flexWrap:'wrap', gap:'.4rem' }}>
+            {TASK_STATUSES.map(s=>{ const c=taskStatusColors[s]||'#A6AAB5'; return (
+              <button key={s} onClick={()=>updTsk(task.id,'status',s)} style={{ padding:'.3rem .875rem', borderRadius:'999px', fontSize:'.85rem', cursor:'pointer', background:task.status===s?`${c}22`:'transparent', color:task.status===s?c:'var(--muted)', border:`1.5px solid ${task.status===s?c+'66':'var(--border)'}`, fontWeight:task.status===s?700:500, fontFamily:'inherit' }}>{s}</button>
+            )})}
+          </div>
+        </div>
+        <div style={{ display:'flex', gap:'.625rem' }}>
+          <div style={{ flex:1 }}>
+            <div style={{ fontSize:'.72rem', fontWeight:700, color:'var(--muted)', letterSpacing:'.1em', textTransform:'uppercase', marginBottom:'.4rem' }}>Due date</div>
+            <input type="date" className="form-input" value={task.due_date||''} onChange={e=>updTsk(task.id,'due_date',e.target.value)}/>
+          </div>
+          <div style={{ flex:1 }}>
+            <div style={{ fontSize:'.72rem', fontWeight:700, color:'var(--muted)', letterSpacing:'.1em', textTransform:'uppercase', marginBottom:'.4rem' }}>Points</div>
+            <select className="form-select" value={task.points||10} onChange={e=>updTsk(task.id,'points',parseInt(e.target.value))}>
+              {[5,10,15,20,25,30,50,100].map(p=><option key={p} value={p}>+{p} pts</option>)}
+            </select>
+          </div>
+          <div style={{ flex:1 }}>
+            <div style={{ fontSize:'.72rem', fontWeight:700, color:'var(--muted)', letterSpacing:'.1em', textTransform:'uppercase', marginBottom:'.4rem' }}>Owner</div>
+            <select className="form-select" value={task.owner||''} onChange={e=>updTsk(task.id,'owner',e.target.value)}>
+              <option value="">—</option>
+              {TASK_OWNERS.map(o=><option key={o}>{o}</option>)}
+            </select>
+          </div>
+        </div>
+        <div>
+          <div style={{ fontSize:'.72rem', fontWeight:700, color:'var(--muted)', letterSpacing:'.1em', textTransform:'uppercase', marginBottom:'.4rem' }}>Discussion point</div>
+          <textarea className="form-textarea" style={{ minHeight:72 }} defaultValue={task.discussion_point||''} onBlur={e=>updTsk(task.id,'discussion_point',e.target.value)} placeholder="What to focus on or talk about…"/>
+        </div>
+        <div>
+          <div style={{ fontSize:'.72rem', fontWeight:700, color:'var(--muted)', letterSpacing:'.1em', textTransform:'uppercase', marginBottom:'.4rem' }}>Where this leads</div>
+          <textarea className="form-textarea" style={{ minHeight:64 }} defaultValue={task.where_this_leads||''} onBlur={e=>updTsk(task.id,'where_this_leads',e.target.value)} placeholder="The outcome or purpose of this task…"/>
+        </div>
+        <div>
+          <div style={{ fontSize:'.72rem', fontWeight:700, color:'var(--muted)', letterSpacing:'.1em', textTransform:'uppercase', marginBottom:'.4rem' }}>Next tiny step</div>
+          <input className="form-input" defaultValue={task.next_step||''} onBlur={e=>updTsk(task.id,'next_step',e.target.value)} placeholder="The smallest first action…"/>
+        </div>
+        <div>
+          <div style={{ fontSize:'.72rem', fontWeight:700, color:'var(--muted)', letterSpacing:'.1em', textTransform:'uppercase', marginBottom:'.4rem' }}>Script / Email / Message Draft</div>
+          <textarea className="form-textarea" style={{ minHeight:140, lineHeight:1.75 }} defaultValue={task.script||''} onBlur={e=>updTsk(task.id,'script',e.target.value)} placeholder="Add a call script, email draft, or message template here…"/>
+        </div>
+        <button className="btn btn-danger btn-xs" style={{ alignSelf:'flex-start' }} onClick={()=>{ delTsk(task.id); onClose() }}>Delete task</button>
+      </div>
+    )
+
+    return (
+      <div style={{ display:'flex', flexDirection:'column', maxHeight:'calc(100vh - 240px)', overflow:'hidden' }}>
+        {/* Header */}
+        <div style={{ padding:'1.375rem 1.625rem', borderBottom:'1px solid var(--border)', flexShrink:0 }}>
+          <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:'1rem' }}>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontSize:'1.2rem', fontWeight:700, color:'var(--dark)', lineHeight:1.35, marginBottom:'.625rem' }}>{task.name}</div>
+              <div style={{ display:'flex', alignItems:'center', gap:'.875rem', flexWrap:'wrap' }}>
+                {client.company && <span style={{ fontSize:'.82rem', color:'var(--muted)', display:'flex', alignItems:'center', gap:'.3rem' }}>🏢 {client.company}</span>}
+                {client.connection_strength && <span style={{ fontSize:'.82rem', color:'var(--muted)', display:'flex', alignItems:'center', gap:'.3rem' }}>⭐ {client.connection_strength}</span>}
+                {due && <span style={{ fontSize:'.82rem', color:due.color, fontWeight:due.bold?700:400, display:'flex', alignItems:'center', gap:'.3rem' }}>📅 {due.text}</span>}
+              </div>
+            </div>
+            <div style={{ display:'flex', alignItems:'center', gap:'.5rem', flexShrink:0 }}>
+              <span style={{ background:'var(--pale-cloud)', color:'#2E6080', borderRadius:'999px', padding:'.28rem .875rem', fontSize:'.88rem', fontWeight:600 }}>+{pts} pts</span>
+              <button onClick={()=>setEditMode(true)} style={{ background:'none', border:'1px solid var(--border)', borderRadius:'8px', cursor:'pointer', color:'var(--muted)', fontSize:'1.15rem', padding:'.2rem .5rem', lineHeight:1 }}>⋯</button>
+              <button onClick={onClose} style={{ background:'none', border:'1px solid var(--border)', borderRadius:'8px', cursor:'pointer', color:'var(--muted)', fontSize:'.85rem', padding:'.28rem .55rem', lineHeight:1 }}>✕</button>
+            </div>
+          </div>
+        </div>
+
+        {/* 4-column info strip */}
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', borderBottom:'1px solid var(--border)', flexShrink:0 }}>
+          {[
+            { icon:'💬', label:'Discussion Point', value: task.discussion_point },
+            { icon:'→', label:'Where This Leads', value: task.where_this_leads },
+            { icon:'⭐', label:'Points', value: `+${pts} points\n${pts>=25?'High-value — moves this lead forward significantly.':pts>=20?'Strong action that builds real momentum.':pts>=15?'Keeps the lead warm and moving.':'Quick action to maintain connection.'}` },
+            { icon:'▶', label:'Next Tiny Step', value: task.next_step },
+          ].map(({icon,label,value},i) => (
+            <div key={label} style={{ padding:'1rem 1.125rem', borderRight:i<3?'1px solid var(--border)':'none' }}>
+              <div style={{ fontSize:'.6rem', fontWeight:700, color:'var(--muted)', letterSpacing:'.12em', textTransform:'uppercase', marginBottom:'.5rem', display:'flex', alignItems:'center', gap:'.35rem' }}>
+                <span>{icon}</span>{label}
+              </div>
+              <div style={{ fontSize:'.875rem', lineHeight:1.65, color: label==='Next Tiny Step'?'var(--mist-blue)':label==='Points'?'var(--dark)':'var(--dark)', whiteSpace:'pre-line', fontWeight: label==='Points'?700:400 }}>
+                {value || <span style={{ color:'var(--border)', fontWeight:400 }}>—</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Script section */}
+        <div style={{ flex:1, overflowY:'auto', padding:'1.375rem 1.625rem' }}>
+          {task.script ? (
+            <>
+              <div style={{ fontSize:'.68rem', fontWeight:700, color:'var(--mist-blue)', letterSpacing:'.14em', textTransform:'uppercase', marginBottom:'.875rem' }}>Script / Draft</div>
+              <div style={{ fontSize:'.9rem', lineHeight:1.9, color:'var(--dark)', whiteSpace:'pre-wrap', fontFamily:'inherit' }}>{task.script}</div>
+            </>
+          ) : (
+            <button onClick={()=>setEditMode(true)} style={{ background:'none', border:'1.5px dashed var(--border)', borderRadius:'12px', padding:'1.25rem', width:'100%', cursor:'pointer', color:'var(--muted)', fontSize:'.9rem', fontFamily:'inherit', textAlign:'center' }}>
+              + Add a script or draft for this task
+            </button>
+          )}
+        </div>
+
+        {/* Action buttons */}
+        <div style={{ padding:'1.125rem 1.625rem', borderTop:'1px solid var(--border)', display:'flex', gap:'.625rem', flexWrap:'wrap', flexShrink:0 }}>
+          <button onClick={()=>updTsk(task.id,'status','Done')} style={{ flex:2, minWidth:130, background:'var(--dark)', color:'#fff', border:'none', borderRadius:'12px', padding:'.875rem 1rem', fontSize:'1rem', fontWeight:700, cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', justifyContent:'center', gap:'.4rem' }}>
+            {primaryLabel}
+          </button>
+          {task.script && <button onClick={()=>copyText(task.script)} style={{ flex:1, minWidth:100, background:'transparent', color:'var(--dark)', border:'1.5px solid var(--border)', borderRadius:'12px', padding:'.875rem .875rem', fontSize:'.95rem', fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>Copy Script</button>}
+          {isCallType && <button onClick={()=>updTsk(task.id,'status','Done')} style={{ flex:1, minWidth:100, background:'transparent', color:'var(--dark)', border:'1.5px solid var(--border)', borderRadius:'12px', padding:'.875rem .875rem', fontSize:'.95rem', fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>✓ Mark Done</button>}
+          <button onClick={()=>setEditMode(true)} style={{ flex:1, minWidth:90, background:'transparent', color:'var(--dark)', border:'1.5px solid var(--border)', borderRadius:'12px', padding:'.875rem .875rem', fontSize:'.95rem', fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>✎ Add Note</button>
+        </div>
+      </div>
+    )
+  }
+
 
   const TABS = ['overview','tasks','diagnosis','notes','comments','emails']
   const assignOptions = users.map(u => u.name).filter(Boolean)
@@ -593,75 +580,86 @@ export default function ClientDetail() {
 
         {/* ── TASKS ── */}
         {tab==='tasks'&&(
-          <div style={{ display:'flex', gap:'1.75rem', alignItems:'flex-start' }}>
+          <div>
+            {/* Page heading */}
+            <div style={{ marginBottom:'1.25rem' }}>
+              <div style={{ fontFamily:'Cormorant Garamond, Georgia, serif', fontSize:'1.6rem', fontWeight:400, marginBottom:'.2rem' }}>Pipeline Tasks</div>
+              <div style={{ fontSize:'.9rem', color:'var(--muted)' }}>Best next actions to move {(client.name||'').split(' ')[0]} forward.</div>
+            </div>
 
-            {/* ── Left: vertical filters ── */}
-            <div style={{ width:190, flexShrink:0, position:'sticky', top:0 }}>
-              {/* Add task button */}
-              <button className="btn btn-primary" style={{ width:'100%', marginBottom:'1.25rem', justifyContent:'center' }} onClick={addTsk}>+ Add task</button>
+            {/* Horizontal filter pills */}
+            <div style={{ display:'flex', flexWrap:'wrap', gap:'.5rem', marginBottom:'1.375rem', alignItems:'center' }}>
+              {TASK_FILTER_LABELS.map(f => {
+                const count = getFilteredTasks(f).length
+                const active = taskFilter === f
+                const urgent = f === 'Due Now' && count > 0
+                return (
+                  <button key={f} onClick={()=>{setTaskFilter(f);setSelectedTask(null)}} style={{ padding:'.38rem .95rem', borderRadius:'999px', fontSize:'.875rem', fontWeight: active ? 700 : 400, cursor:'pointer', fontFamily:'inherit', border: active ? '1.5px solid var(--mist-blue)' : `1.5px solid ${urgent?'var(--red-b)':'var(--border)'}`, background: active ? 'var(--pale-cloud)' : 'transparent', color: active ? '#2E6080' : urgent ? 'var(--red)' : 'var(--muted)', transition:'all .12s', whiteSpace:'nowrap', display:'flex', alignItems:'center', gap:'.35rem' }}>
+                    {f}{count > 0 && <span style={{ fontWeight:700 }}>{count}</span>}
+                  </button>
+                )
+              })}
+            </div>
 
-              {/* Filter list */}
-              <div style={{ display:'flex', flexDirection:'column', gap:'.3rem' }}>
-                {TASK_FILTER_LABELS.map(f => {
-                  const count = getFilteredTasks(f).length
-                  const active = taskFilter === f
-                  return (
-                    <button key={f} onClick={()=>setTaskFilter(f)} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'.55rem .875rem', borderRadius:'10px', fontSize:'.9rem', fontWeight: active ? 700 : 400, cursor:'pointer', fontFamily:'inherit', border: 'none', background: active ? 'var(--pale-cloud)' : 'transparent', color: active ? '#2E6080' : 'var(--muted)', transition:'all .12s', textAlign:'left' }}
-                      onMouseEnter={e=>{ if(!active) e.currentTarget.style.background='rgba(0,0,0,.04)' }}
-                      onMouseLeave={e=>{ if(!active) e.currentTarget.style.background='transparent' }}
-                    >
-                      <span>{f}</span>
-                      {count > 0 && <span style={{ fontSize:'.78rem', fontWeight:600, background: active ? 'rgba(46,96,128,.15)' : 'var(--border)', color: active ? '#2E6080' : 'var(--muted)', borderRadius:'999px', padding:'.05rem .5rem', minWidth:22, textAlign:'center' }}>{count}</span>}
-                    </button>
-                  )
-                })}
+            {/* Split panel */}
+            <div style={{ display:'flex', gap:'1.25rem', alignItems:'flex-start' }}>
+
+              {/* Left: compact task list */}
+              <div style={{ width:360, flexShrink:0 }}>
+                {getFilteredTasks(taskFilter).map(task => (
+                  <TaskListItem key={task.id} task={task} selected={selectedTask===task.id} onSelect={()=>setSelectedTask(task.id)}/>
+                ))}
+                {getFilteredTasks(taskFilter).length === 0 && (
+                  <div style={{ textAlign:'center', padding:'2.5rem 1rem', color:'var(--muted)', fontSize:'.9rem' }}>No tasks match this filter.</div>
+                )}
+                <button onClick={addTsk} style={{ width:'100%', background:'transparent', border:'1.5px dashed var(--border)', borderRadius:'14px', padding:'.875rem 1rem', fontSize:'.9rem', color:'var(--muted)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:'.5rem', marginTop:'.375rem', fontFamily:'inherit' }}>
+                  <span style={{ fontSize:'1.1rem', lineHeight:1 }}>+</span> Add New Task
+                </button>
+
+                {/* Lead progress + task generator below list */}
+                {(() => {
+                  const done = tasks.filter(t=>t.status==='Done')
+                  const earned = done.reduce((s,t)=>s+(t.points||10),0)
+                  const total = tasks.reduce((s,t)=>s+(t.points||10),0)
+                  return total > 0 ? (
+                    <div style={{ marginTop:'1.25rem', padding:'.875rem 1rem', background:'var(--warm)', border:'.5px solid var(--border)', borderRadius:'12px' }}>
+                      <div style={{ fontSize:'.68rem', fontWeight:700, color:'var(--muted)', letterSpacing:'.08em', textTransform:'uppercase', marginBottom:'.5rem' }}>Lead Progress</div>
+                      <div style={{ display:'flex', alignItems:'center', gap:'.625rem' }}>
+                        <div style={{ flex:1, height:6, background:'var(--border)', borderRadius:'3px', overflow:'hidden' }}>
+                          <div style={{ height:'100%', borderRadius:'3px', background:'var(--mist-blue)', width:`${Math.round((earned/total)*100)}%`, transition:'width .4s' }}/>
+                        </div>
+                        <span style={{ fontSize:'.85rem', fontWeight:700, color:'var(--dark)', flexShrink:0 }}>{earned} / {total} pts</span>
+                      </div>
+                    </div>
+                  ) : null
+                })()}
+
+                <div style={{ marginTop:'.875rem', padding:'.875rem 1rem', background:'var(--warm)', border:'.5px solid var(--border)', borderRadius:'12px' }}>
+                  <div style={{ fontSize:'.68rem', fontWeight:700, color:'var(--muted)', letterSpacing:'.08em', textTransform:'uppercase', marginBottom:'.5rem' }}>Generate tasks</div>
+                  <select className="form-select" style={{ marginBottom:'.5rem' }} value={taskFlow} onChange={e=>setTaskFlow(e.target.value)}>
+                    <option value="">— choose a stage —</option>
+                    {Object.keys(STAGE_TASK_FLOWS).map(k=><option key={k}>{k}</option>)}
+                  </select>
+                  {taskFlow && <button className="btn btn-primary btn-sm" style={{ width:'100%', justifyContent:'center' }} onClick={applyTaskFlow} disabled={addingFlow}>{addingFlow?'Adding…':`Add ${STAGE_TASK_FLOWS[taskFlow].length} tasks`}</button>}
+                </div>
               </div>
 
-              {/* Lead progress */}
-              {(() => {
-                const done = tasks.filter(t=>t.status==='Done')
-                const earned = done.reduce((s,t)=>s+(t.points||10),0)
-                const total = tasks.reduce((s,t)=>s+(t.points||10),0)
-                if (!total) return null
-                return (
-                  <div style={{ marginTop:'1.5rem', padding:'1rem', background:'var(--warm)', border:'.5px solid var(--border)', borderRadius:'12px' }}>
-                    <div style={{ fontSize:'.7rem', fontWeight:700, color:'var(--muted)', letterSpacing:'.08em', textTransform:'uppercase', marginBottom:'.625rem' }}>Lead Progress</div>
-                    <div style={{ height:6, background:'var(--border)', borderRadius:'3px', overflow:'hidden', marginBottom:'.5rem' }}>
-                      <div style={{ height:'100%', borderRadius:'3px', background:'var(--mist-blue)', width:`${Math.round((earned/total)*100)}%`, transition:'width .4s' }}/>
-                    </div>
-                    <div style={{ fontSize:'.85rem', fontWeight:600, color:'var(--dark)' }}>{earned} / {total} pts</div>
+              {/* Right: task detail panel */}
+              <div style={{ flex:1, minWidth:0 }}>
+                {selectedTask && tasks.find(t=>t.id===selectedTask) ? (
+                  <div style={{ background:'#FFFFFF', border:'1px solid var(--border)', borderRadius:'20px', overflow:'hidden', boxShadow:'0 8px 32px rgba(0,0,0,.08)' }}>
+                    <TaskDetailPanel task={tasks.find(t=>t.id===selectedTask)} onClose={()=>setSelectedTask(null)}/>
                   </div>
-                )
-              })()}
-
-              {/* Task flow generator */}
-              <div style={{ marginTop:'1.25rem', padding:'1rem', background:'var(--warm)', border:'.5px solid var(--border)', borderRadius:'12px' }}>
-                <div style={{ fontSize:'.7rem', fontWeight:700, color:'var(--muted)', letterSpacing:'.08em', textTransform:'uppercase', marginBottom:'.625rem' }}>Generate tasks</div>
-                <select className="form-select" style={{ marginBottom:'.625rem' }} value={taskFlow} onChange={e=>setTaskFlow(e.target.value)}>
-                  <option value="">— choose stage —</option>
-                  {Object.keys(STAGE_TASK_FLOWS).map(k=><option key={k}>{k}</option>)}
-                </select>
-                {taskFlow && (
-                  <button className="btn btn-primary btn-sm" style={{ width:'100%', justifyContent:'center' }} onClick={applyTaskFlow} disabled={addingFlow}>{addingFlow?'Adding…':`Add ${STAGE_TASK_FLOWS[taskFlow].length} tasks`}</button>
+                ) : (
+                  <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'5rem 2rem', color:'var(--muted)', textAlign:'center', background:'var(--warm)', borderRadius:'20px', border:'1.5px dashed var(--border)' }}>
+                    <div style={{ fontSize:'1.5rem', marginBottom:'.75rem', opacity:.2 }}>→</div>
+                    <div style={{ fontFamily:'Cormorant Garamond, Georgia, serif', fontSize:'1.25rem', marginBottom:'.4rem' }}>Select a task</div>
+                    <div style={{ fontSize:'.9rem' }}>Click any task on the left to see the full details, script, and actions.</div>
+                  </div>
                 )}
               </div>
-            </div>
 
-            {/* ── Right: task cards ── */}
-            <div style={{ flex:1, minWidth:0 }}>
-              {(() => {
-                const filtered = getFilteredTasks(taskFilter)
-                if (filtered.length === 0) return (
-                  <div style={{ textAlign:'center', padding:'4rem 1rem' }}>
-                    <div style={{ fontSize:'1.75rem', marginBottom:'.875rem', opacity:.2 }}>✓</div>
-                    <div style={{ fontFamily:'Cormorant Garamond, Georgia, serif', fontSize:'1.4rem', color:'var(--muted)', marginBottom:'.5rem' }}>Nothing here</div>
-                    <div style={{ fontSize:'.9rem', color:'var(--muted)' }}>No tasks match this filter.</div>
-                  </div>
-                )
-                return filtered.map(task => <TaskCard key={task.id} task={task}/>)
-              })()}
             </div>
-
           </div>
         )}
 
