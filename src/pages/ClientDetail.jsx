@@ -124,6 +124,7 @@ export default function ClientDetail() {
   const [taskFlow, setTaskFlow] = useState('')
   const [addingFlow, setAddingFlow] = useState(false)
   const [expandedTask, setExpandedTask] = useState(null)
+  const [taskFilter, setTaskFilter] = useState('To Do Now')
 
   useEffect(() => {
     getClient(id)
@@ -225,131 +226,221 @@ export default function ClientDetail() {
   if (!client) return <div className="page"><div className="empty"><div className="empty-title">Client not found</div></div></div>
 
   const taskStatusColors = { 'Today':'#2E6080', 'Now':'#9FBBD0', 'Soon':'#BEB4AA', 'Waiting':'#A6AAB5', 'Done':'#7A8090' }
+  const TASK_FILTER_LABELS = ['To Do Now','Up Next','Due Now','Due This Week','Waiting','Follow Up','High Value','Quick Wins','Done']
+
+  function getFilteredTasks(filter) {
+    const now = new Date().toISOString().split('T')[0]
+    const in7 = new Date(Date.now() + 7*24*60*60*1000).toISOString().split('T')[0]
+    const kw = ['follow','check in','message','reminder','reach','touch','contact','call','email','invite']
+    switch(filter) {
+      case 'To Do Now': return tasks.filter(t => t.status === 'Today' || t.status === 'Now')
+      case 'Up Next':   return tasks.filter(t => t.status === 'Soon')
+      case 'Due Now':   return tasks.filter(t => t.due_date && t.due_date <= now && t.status !== 'Done')
+      case 'Due This Week': return tasks.filter(t => t.due_date && t.due_date >= now && t.due_date <= in7 && t.status !== 'Done')
+      case 'Waiting':   return tasks.filter(t => t.status === 'Waiting')
+      case 'Follow Up': return tasks.filter(t => t.status !== 'Done' && kw.some(k => (t.name||'').toLowerCase().includes(k)))
+      case 'High Value': return tasks.filter(t => t.status !== 'Done' && (t.points||10) >= 25)
+      case 'Quick Wins': return tasks.filter(t => t.status !== 'Done' && (t.points||10) <= 15)
+      case 'Done':      return tasks.filter(t => t.status === 'Done')
+      default:          return tasks
+    }
+  }
 
   function TaskCard({ task }) {
-    const isExpanded = expandedTask === task.id
+    const isEditing = expandedTask === task.id
+    const [showScript, setShowScript] = useState(false)
     const col = taskStatusColors[task.status] || '#A6AAB5'
-    const progressTotal = task.progress_total || 5
-    const progressCurrent = task.progress_current || 0
+    const pts = task.points || 10
+    const todayStr = new Date().toISOString().split('T')[0]
+    const isOverdue = task.due_date && task.due_date < todayStr && task.status !== 'Done'
+    const isDone = task.status === 'Done'
 
-    const formatDue = (str) => {
+    const fmtDue = (str) => {
       if (!str) return null
       return new Date(str + 'T00:00').toLocaleDateString('en-NZ', { weekday:'long', day:'numeric', month:'long' })
     }
+    const copyText = (text) => { try { navigator.clipboard.writeText(text) } catch(e) {} }
 
     return (
-      <div style={{ background:'#FFFFFF', border:'1px solid var(--border)', borderRadius:'20px', marginBottom:'1rem', padding:'1.25rem 1.375rem', boxShadow:'var(--card-shadow)', transition:'box-shadow .15s' }}
-        onMouseEnter={e=>e.currentTarget.style.boxShadow='0 4px 20px rgba(0,0,0,.1)'}
-        onMouseLeave={e=>e.currentTarget.style.boxShadow='var(--card-shadow)'}
-      >
-        {isExpanded ? (
+      <div style={{ background:'#FFFFFF', border:'1px solid var(--border)', borderRadius:'20px', marginBottom:'1.5rem', boxShadow:'0 8px 24px rgba(0,0,0,.06)', overflow:'hidden', opacity: isDone ? 0.65 : 1 }}>
+        {isEditing ? (
           /* ── Edit mode ── */
-          <div style={{ display:'flex', flexDirection:'column', gap:'.75rem' }}>
+          <div style={{ padding:'1.75rem', display:'flex', flexDirection:'column', gap:'1rem' }}>
             <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-              <span style={{ fontSize:'.72rem', fontWeight:700, color:'var(--muted)', letterSpacing:'.08em', textTransform:'uppercase' }}>Edit task</span>
+              <span style={{ fontSize:'.72rem', fontWeight:700, color:'var(--muted)', letterSpacing:'.1em', textTransform:'uppercase' }}>Edit task</span>
               <button className="btn btn-ghost btn-xs" onClick={()=>setExpandedTask(null)}>Done</button>
             </div>
-            <input className="form-input" style={{ fontWeight:700, fontSize:'1rem' }} defaultValue={task.name} onBlur={e=>updTsk(task.id,'name',e.target.value)} autoFocus placeholder="Task name…"/>
-            <textarea className="form-textarea" style={{ fontSize:'.875rem', minHeight:56 }} defaultValue={task.next_step||''} onBlur={e=>updTsk(task.id,'next_step',e.target.value)} placeholder="Next tiny step…"/>
-            <div style={{ display:'flex', gap:'.5rem' }}>
-              <select className="form-select" style={{ flex:1, fontSize:'.875rem' }} value={task.owner||''} onChange={e=>updTsk(task.id,'owner',e.target.value)}>
-                <option value="">— Owner —</option>
-                {TASK_OWNERS.map(o=><option key={o}>{o}</option>)}
-              </select>
-              <input type="date" className="form-input" style={{ width:155, fontSize:'.875rem' }} value={task.due_date||''} onChange={e=>updTsk(task.id,'due_date',e.target.value)}/>
-            </div>
-            {/* Progress dots editor */}
-            <div style={{ display:'flex', alignItems:'center', gap:'.75rem' }}>
-              <span style={{ fontSize:'.75rem', fontWeight:700, color:'var(--muted)', minWidth:68 }}>Progress</span>
-              <div style={{ display:'flex', gap:'.4rem' }}>
-                {Array.from({length:progressTotal},(_,i)=>(
-                  <button key={i} onClick={()=>updTsk(task.id,'progress_current',i+1===progressCurrent?i:i+1)} style={{ width:14, height:14, borderRadius:'50%', border:'none', cursor:'pointer', background:i<progressCurrent?col:'var(--border)', padding:0, transition:'background .15s' }}/>
-                ))}
-              </div>
-              <span style={{ fontSize:'.75rem', color:'var(--muted)' }}>{progressCurrent} of {progressTotal}</span>
-            </div>
+
+            <input className="form-input" style={{ fontWeight:700, fontSize:'1.05rem' }} defaultValue={task.name} onBlur={e=>updTsk(task.id,'name',e.target.value)} autoFocus placeholder="Task name…"/>
+
             {/* Status pills */}
-            <div style={{ display:'flex', flexWrap:'wrap', gap:'.35rem' }}>
-              {TASK_STATUSES.map(s=>{
-                const c = taskStatusColors[s]||'#A6AAB5'
-                return <button key={s} onClick={()=>updTsk(task.id,'status',s)} style={{ padding:'.25rem .7rem', borderRadius:'999px', fontSize:'.75rem', cursor:'pointer', background:task.status===s?`${c}22`:'transparent', color:task.status===s?c:'var(--muted)', border:`1px solid ${task.status===s?c+'66':'var(--border)'}`, fontWeight:task.status===s?700:500 }}>{s}</button>
-              })}
+            <div>
+              <div style={{ fontSize:'.72rem', fontWeight:700, color:'var(--muted)', letterSpacing:'.1em', textTransform:'uppercase', marginBottom:'.5rem' }}>Status</div>
+              <div style={{ display:'flex', flexWrap:'wrap', gap:'.4rem' }}>
+                {TASK_STATUSES.map(s=>{ const c=taskStatusColors[s]||'#A6AAB5'; return (
+                  <button key={s} onClick={()=>updTsk(task.id,'status',s)} style={{ padding:'.3rem .875rem', borderRadius:'999px', fontSize:'.85rem', cursor:'pointer', background:task.status===s?`${c}22`:'transparent', color:task.status===s?c:'var(--muted)', border:`1.5px solid ${task.status===s?c+'66':'var(--border)'}`, fontWeight:task.status===s?700:500, fontFamily:'inherit' }}>{s}</button>
+                )})}
+              </div>
             </div>
+
+            {/* Due + owner */}
+            <div style={{ display:'flex', gap:'.625rem' }}>
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:'.72rem', fontWeight:700, color:'var(--muted)', letterSpacing:'.1em', textTransform:'uppercase', marginBottom:'.4rem' }}>Due date</div>
+                <input type="date" className="form-input" value={task.due_date||''} onChange={e=>updTsk(task.id,'due_date',e.target.value)}/>
+              </div>
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:'.72rem', fontWeight:700, color:'var(--muted)', letterSpacing:'.1em', textTransform:'uppercase', marginBottom:'.4rem' }}>Owner</div>
+                <select className="form-select" value={task.owner||''} onChange={e=>updTsk(task.id,'owner',e.target.value)}>
+                  <option value="">— Owner —</option>
+                  {TASK_OWNERS.map(o=><option key={o}>{o}</option>)}
+                </select>
+              </div>
+            </div>
+
+            {/* Points */}
+            <div>
+              <div style={{ fontSize:'.72rem', fontWeight:700, color:'var(--muted)', letterSpacing:'.1em', textTransform:'uppercase', marginBottom:'.4rem' }}>Points</div>
+              <select className="form-select" value={task.points||10} onChange={e=>updTsk(task.id,'points',parseInt(e.target.value))}>
+                {[5,10,15,20,25,30,50,100].map(p=>(
+                  <option key={p} value={p}>+{p} pts — {p<=5?'Quick admin':p<=10?'Short message':p<=15?'Send email':p<=20?'Phone call':p<=25?'Book meeting':p<=30?'Send proposal':p<=50?'Proposal accepted':'Client onboarded'}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Discussion point */}
+            <div>
+              <div style={{ fontSize:'.72rem', fontWeight:700, color:'var(--muted)', letterSpacing:'.1em', textTransform:'uppercase', marginBottom:'.4rem' }}>Discussion point</div>
+              <textarea className="form-textarea" style={{ minHeight:72 }} defaultValue={task.discussion_point||''} onBlur={e=>updTsk(task.id,'discussion_point',e.target.value)} placeholder="What to focus on or talk about…"/>
+            </div>
+
+            {/* Where this leads */}
+            <div>
+              <div style={{ fontSize:'.72rem', fontWeight:700, color:'var(--muted)', letterSpacing:'.1em', textTransform:'uppercase', marginBottom:'.4rem' }}>Where this leads</div>
+              <textarea className="form-textarea" style={{ minHeight:64 }} defaultValue={task.where_this_leads||''} onBlur={e=>updTsk(task.id,'where_this_leads',e.target.value)} placeholder="The outcome or purpose of this task…"/>
+            </div>
+
+            {/* Next tiny step */}
+            <div>
+              <div style={{ fontSize:'.72rem', fontWeight:700, color:'var(--muted)', letterSpacing:'.1em', textTransform:'uppercase', marginBottom:'.4rem' }}>Next tiny step</div>
+              <input className="form-input" defaultValue={task.next_step||''} onBlur={e=>updTsk(task.id,'next_step',e.target.value)} placeholder="The smallest first action…"/>
+            </div>
+
+            {/* Script */}
+            <div>
+              <div style={{ fontSize:'.72rem', fontWeight:700, color:'var(--muted)', letterSpacing:'.1em', textTransform:'uppercase', marginBottom:'.4rem' }}>Script / Email / Message Draft</div>
+              <textarea className="form-textarea" style={{ minHeight:130, lineHeight:1.75 }} defaultValue={task.script||''} onBlur={e=>updTsk(task.id,'script',e.target.value)} placeholder="Paste a call script, email draft, or message template here…"/>
+            </div>
+
+            {/* Progress dots */}
+            <div>
+              <div style={{ fontSize:'.72rem', fontWeight:700, color:'var(--muted)', letterSpacing:'.1em', textTransform:'uppercase', marginBottom:'.5rem' }}>Progress</div>
+              <div style={{ display:'flex', alignItems:'center', gap:'.625rem' }}>
+                <div style={{ display:'flex', gap:'.4rem' }}>
+                  {Array.from({length:task.progress_total||5},(_,i)=>(
+                    <button key={i} onClick={()=>updTsk(task.id,'progress_current',i+1===(task.progress_current||0)?i:i+1)} style={{ width:14, height:14, borderRadius:'50%', border:'none', cursor:'pointer', background:i<(task.progress_current||0)?col:'var(--border)', padding:0 }}/>
+                  ))}
+                </div>
+                <span style={{ fontSize:'.82rem', color:'var(--muted)' }}>{task.progress_current||0} of {task.progress_total||5}</span>
+              </div>
+            </div>
+
             <button className="btn btn-danger btn-xs" style={{ alignSelf:'flex-start' }} onClick={()=>{ delTsk(task.id); setExpandedTask(null) }}>Delete task</button>
           </div>
         ) : (
           /* ── Display mode ── */
-          <>
-            {/* Status + menu row */}
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'1rem' }}>
-              <span style={{ background:`${col}22`, color:col, border:`1px solid ${col}66`, borderRadius:'999px', padding:'.25rem .75rem', fontSize:'.75rem', fontWeight:700 }}>{task.status}</span>
-              <button onClick={()=>setExpandedTask(task.id)} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--soft-slate)', fontSize:'1.1rem', padding:'.15rem', lineHeight:1, letterSpacing:'.05em' }}>⋯</button>
+          <div style={{ padding:'1.75rem' }}>
+            {/* Header: status + points + menu */}
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'1.25rem' }}>
+              <span style={{ background:`${col}22`, color:col, border:`1px solid ${col}66`, borderRadius:'999px', padding:'.3rem .875rem', fontSize:'.82rem', fontWeight:700 }}>{task.status}</span>
+              <div style={{ display:'flex', alignItems:'center', gap:'.5rem' }}>
+                <span style={{ background:'var(--pale-cloud)', color:'#2E6080', borderRadius:'999px', padding:'.28rem .75rem', fontSize:'.82rem', fontWeight:600 }}>+{pts} pts</span>
+                <button onClick={()=>setExpandedTask(task.id)} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--muted)', fontSize:'1.25rem', padding:'.1rem .3rem', lineHeight:1 }}>⋯</button>
+              </div>
             </div>
 
-            {/* Title */}
-            <div style={{ fontSize:'1.05rem', fontWeight:700, color:'var(--dark)', lineHeight:1.35, marginBottom:'.875rem' }}>{task.name}</div>
+            {/* Task name */}
+            <div style={{ fontSize:'1.15rem', fontWeight:700, color: isDone ? 'var(--muted)' : 'var(--dark)', lineHeight:1.4, marginBottom:task.due_date?'.75rem':'1.25rem', textDecoration: isDone ? 'line-through' : 'none' }}>
+              {task.name}
+            </div>
 
-            {/* Due + client meta */}
-            {(task.due_date || client.name) && (
-              <div style={{ display:'flex', flexDirection:'column', gap:'.3rem', marginBottom:'.875rem' }}>
-                {task.due_date && (
-                  <div style={{ display:'flex', alignItems:'center', gap:'.5rem', fontSize:'.82rem', color:'var(--muted)' }}>
-                    <span style={{ fontSize:'.9rem' }}>📅</span>
-                    <span>Due: {formatDue(task.due_date)}</span>
-                  </div>
-                )}
-                <div style={{ display:'flex', alignItems:'center', gap:'.5rem', fontSize:'.82rem', color:'var(--muted)' }}>
-                  <span style={{ fontSize:'.9rem' }}>👤</span>
-                  <span>Client: {client.name}</span>
-                </div>
+            {/* Due date */}
+            {task.due_date && (
+              <div style={{ display:'flex', alignItems:'center', gap:'.5rem', fontSize:'.9rem', color: isOverdue ? 'var(--red)' : 'var(--muted)', marginBottom:'1.25rem' }}>
+                <span>📅</span>
+                <span style={{ fontWeight: isOverdue ? 700 : 400 }}>{isOverdue ? 'Overdue — ' : 'Due: '}{fmtDue(task.due_date)}</span>
               </div>
             )}
 
-            <div style={{ height:'1px', background:'var(--border)', margin:'.875rem 0' }}/>
+            <div style={{ height:'1px', background:'var(--border)', margin:'1.25rem 0' }}/>
+
+            {/* Discussion point */}
+            {task.discussion_point && (
+              <div style={{ marginBottom:'1.25rem' }}>
+                <div style={{ fontSize:'.72rem', fontWeight:700, color:'var(--muted)', letterSpacing:'.1em', textTransform:'uppercase', marginBottom:'.5rem' }}>Discussion point</div>
+                <div style={{ fontSize:'1rem', lineHeight:1.65, color:'var(--dark)' }}>{task.discussion_point}</div>
+              </div>
+            )}
+
+            {/* Where this leads */}
+            {task.where_this_leads && (
+              <div style={{ marginBottom:'1.25rem', padding:'1rem 1.25rem', background:'var(--bg)', borderRadius:'12px', border:'.5px solid var(--border)' }}>
+                <div style={{ fontSize:'.72rem', fontWeight:700, color:'var(--muted)', letterSpacing:'.1em', textTransform:'uppercase', marginBottom:'.4rem' }}>Where this leads</div>
+                <div style={{ fontSize:'1rem', lineHeight:1.65, color:'var(--dark)' }}>{task.where_this_leads}</div>
+              </div>
+            )}
+
+            {(task.discussion_point || task.where_this_leads) && (
+              <div style={{ height:'1px', background:'var(--border)', margin:'1.25rem 0' }}/>
+            )}
+
+            {/* Script / Draft (expandable) */}
+            {task.script && (
+              <>
+                <div style={{ marginBottom:'1.25rem' }}>
+                  <button onClick={()=>setShowScript(s=>!s)} style={{ background:'none', border:'none', cursor:'pointer', display:'flex', alignItems:'center', gap:'.4rem', padding:0, marginBottom: showScript ? '.875rem' : 0 }}>
+                    <span style={{ color: showScript ? 'var(--dark)' : 'var(--mist-blue)', fontSize:'.9rem' }}>{showScript ? '▾' : '▸'}</span>
+                    <span style={{ fontSize:'.82rem', fontWeight:700, color: showScript ? 'var(--muted)' : 'var(--mist-blue)', letterSpacing:'.1em', textTransform:'uppercase' }}>Script / Draft</span>
+                  </button>
+                  {showScript && (
+                    <div style={{ background:'var(--bg)', borderRadius:'12px', padding:'1.25rem 1.5rem', fontSize:'.95rem', lineHeight:1.8, color:'var(--dark)', whiteSpace:'pre-wrap', fontFamily:'inherit', border:'.5px solid var(--border)' }}>
+                      {task.script}
+                    </div>
+                  )}
+                </div>
+                <div style={{ height:'1px', background:'var(--border)', margin:'1.25rem 0' }}/>
+              </>
+            )}
 
             {/* Next tiny step */}
-            <div style={{ marginBottom:'.875rem' }}>
-              <div style={{ fontSize:'.8rem', fontWeight:700, color:'var(--dark)', marginBottom:'.4rem' }}>Next tiny step</div>
+            <div style={{ marginBottom:'1.5rem' }}>
+              <div style={{ fontSize:'.72rem', fontWeight:700, color:'var(--muted)', letterSpacing:'.1em', textTransform:'uppercase', marginBottom:'.5rem' }}>Next tiny step</div>
               {task.next_step ? (
-                <div style={{ display:'flex', alignItems:'flex-start', gap:'.5rem' }}>
-                  <span style={{ color:'var(--mist-blue)', flexShrink:0 }}>▶</span>
-                  <span style={{ fontSize:'.875rem', color:'var(--mist-blue)', lineHeight:1.5 }}>{task.next_step}</span>
+                <div style={{ display:'flex', alignItems:'flex-start', gap:'.625rem' }}>
+                  <span style={{ color:'var(--mist-blue)', flexShrink:0, marginTop:'.15rem' }}>▶</span>
+                  <span style={{ fontSize:'1rem', color:'var(--mist-blue)', lineHeight:1.6, fontWeight:500 }}>{task.next_step}</span>
                 </div>
               ) : (
                 <button onClick={()=>setExpandedTask(task.id)} style={{ background:'none', border:'none', cursor:'pointer', display:'flex', alignItems:'center', gap:'.5rem', padding:0 }}>
                   <span style={{ color:'var(--border)' }}>▶</span>
-                  <span style={{ fontSize:'.82rem', color:'var(--soft-slate)', fontStyle:'italic' }}>Add the next step…</span>
+                  <span style={{ fontSize:'.9rem', color:'var(--muted)', fontStyle:'italic' }}>Add next step…</span>
                 </button>
               )}
             </div>
 
-            <div style={{ height:'1px', background:'var(--border)', margin:'.875rem 0' }}/>
-
-            {/* Progress */}
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'1rem' }}>
-              <div style={{ display:'flex', alignItems:'center', gap:'.625rem' }}>
-                <span style={{ fontSize:'.82rem', fontWeight:700, color:'var(--dark)' }}>Progress</span>
-                <div style={{ display:'flex', gap:'.35rem', alignItems:'center' }}>
-                  {Array.from({length:progressTotal},(_,i)=>(
-                    <div key={i} style={{ width:10, height:10, borderRadius:'50%', background:i<progressCurrent?col:'var(--border)', transition:'background .2s' }}/>
-                  ))}
-                </div>
-              </div>
-              <span style={{ fontSize:'.78rem', color:'var(--muted)', fontWeight:600 }}>{progressCurrent} of {progressTotal}</span>
-            </div>
-
             {/* Action buttons */}
-            <div style={{ display:'flex', gap:'.625rem' }}>
-              <button
-                onClick={()=>updTsk(task.id,'progress_current',Math.min(progressCurrent+1,progressTotal))}
-                style={{ flex:1, background:'var(--dark)', color:'#fff', border:'none', borderRadius:'12px', padding:'.75rem 1rem', fontSize:'.875rem', fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}
-              >Keep Going</button>
-              <button
-                onClick={()=>setExpandedTask(task.id)}
-                style={{ flex:1, background:'transparent', color:'var(--dark)', border:'1.5px solid var(--border)', borderRadius:'12px', padding:'.75rem 1rem', fontSize:'.875rem', fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}
-              >Add Note</button>
-            </div>
-          </>
+            {!isDone ? (
+              <div style={{ display:'flex', gap:'.625rem', flexWrap:'wrap' }}>
+                <button onClick={()=>updTsk(task.id,'status','Done')} style={{ flex:1, minWidth:110, background:'var(--dark)', color:'#fff', border:'none', borderRadius:'12px', padding:'.875rem 1rem', fontSize:'1rem', fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>✓ Mark Done</button>
+                {task.script && (
+                  <button onClick={()=>copyText(task.script)} style={{ flex:1, minWidth:110, background:'transparent', color:'var(--dark)', border:'1.5px solid var(--border)', borderRadius:'12px', padding:'.875rem 1rem', fontSize:'1rem', fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>Copy Script</button>
+                )}
+                <button onClick={()=>setExpandedTask(task.id)} style={{ flex:1, minWidth:100, background:'transparent', color:'var(--dark)', border:'1.5px solid var(--border)', borderRadius:'12px', padding:'.875rem 1rem', fontSize:'1rem', fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>✎ Edit</button>
+              </div>
+            ) : (
+              <button onClick={()=>updTsk(task.id,'status','Now')} style={{ background:'transparent', color:'var(--muted)', border:'1px solid var(--border)', borderRadius:'12px', padding:'.5rem 1.25rem', fontSize:'.9rem', cursor:'pointer', fontFamily:'inherit' }}>↩ Reopen</button>
+            )}
+          </div>
         )}
       </div>
     )
@@ -502,47 +593,70 @@ export default function ClientDetail() {
 
         {/* ── TASKS ── */}
         {tab==='tasks'&&(
-          <div>
-            {/* Task flow bar */}
-            <div style={{background:'var(--warm)',border:'.5px solid var(--border)',borderRadius:'8px',padding:'.75rem 1rem',marginBottom:'1.25rem',display:'flex',alignItems:'center',gap:'.75rem',flexWrap:'wrap'}}>
-              <span style={{fontSize:'.65rem',letterSpacing:'.12em',textTransform:'uppercase',color:'var(--muted)',fontWeight:500,flexShrink:0}}>Generate tasks for:</span>
-              <select className="form-select" style={{flex:1,minWidth:160,maxWidth:260}} value={taskFlow} onChange={e=>setTaskFlow(e.target.value)}>
-                <option value="">— Choose a stage —</option>
+          <div style={{ maxWidth:680 }}>
+            {/* Header row */}
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'1.25rem' }}>
+              <div>
+                {(() => {
+                  const done = tasks.filter(t=>t.status==='Done')
+                  const earnedPts = done.reduce((s,t)=>s+(t.points||10),0)
+                  const totalPts = tasks.reduce((s,t)=>s+(t.points||10),0)
+                  return totalPts > 0 ? (
+                    <div style={{ display:'flex', alignItems:'center', gap:'.75rem' }}>
+                      <div style={{ fontSize:'.78rem', fontWeight:700, color:'var(--muted)', letterSpacing:'.06em', textTransform:'uppercase' }}>Lead Progress</div>
+                      <div style={{ display:'flex', alignItems:'center', gap:'.5rem' }}>
+                        <div style={{ width:120, height:6, background:'var(--border)', borderRadius:'3px', overflow:'hidden' }}>
+                          <div style={{ height:'100%', borderRadius:'3px', background:'var(--mist-blue)', width:`${Math.round((earnedPts/totalPts)*100)}%`, transition:'width .4s' }}/>
+                        </div>
+                        <span style={{ fontSize:'.82rem', fontWeight:600, color:'var(--dark)' }}>{earnedPts} / {totalPts} pts</span>
+                      </div>
+                    </div>
+                  ) : null
+                })()}
+              </div>
+              <button className="btn btn-primary btn-sm" onClick={addTsk}>+ Add task</button>
+            </div>
+
+            {/* Filter pills */}
+            <div style={{ display:'flex', flexWrap:'wrap', gap:'.5rem', marginBottom:'1.5rem' }}>
+              {TASK_FILTER_LABELS.map(f => {
+                const count = getFilteredTasks(f).length
+                const active = taskFilter === f
+                return (
+                  <button key={f} onClick={()=>setTaskFilter(f)} style={{ padding:'.4rem 1rem', borderRadius:'999px', fontSize:'.875rem', fontWeight: active ? 700 : 500, cursor:'pointer', fontFamily:'inherit', border: active ? '1.5px solid var(--mist-blue)' : '1.5px solid var(--border)', background: active ? 'var(--pale-cloud)' : 'transparent', color: active ? '#2E6080' : 'var(--muted)', transition:'all .14s', whiteSpace:'nowrap' }}>
+                    {f}{count > 0 ? <span style={{ marginLeft:'.4rem', fontSize:'.78rem', opacity:.7 }}>{count}</span> : null}
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Task flow generator */}
+            <div style={{ background:'var(--warm)', border:'.5px solid var(--border)', borderRadius:'12px', padding:'.875rem 1.125rem', marginBottom:'1.5rem', display:'flex', alignItems:'center', gap:'.75rem', flexWrap:'wrap' }}>
+              <span style={{ fontSize:'.72rem', letterSpacing:'.1em', textTransform:'uppercase', color:'var(--muted)', fontWeight:600, flexShrink:0 }}>Generate tasks for</span>
+              <select className="form-select" style={{ flex:1, minWidth:160, maxWidth:240 }} value={taskFlow} onChange={e=>setTaskFlow(e.target.value)}>
+                <option value="">— choose a stage —</option>
                 {Object.keys(STAGE_TASK_FLOWS).map(k=><option key={k}>{k}</option>)}
               </select>
-              {taskFlow&&(
+              {taskFlow && (
                 <>
-                  <div style={{fontSize:'.7rem',color:'var(--muted)'}}>{STAGE_TASK_FLOWS[taskFlow].length} tasks</div>
+                  <div style={{ fontSize:'.82rem', color:'var(--muted)' }}>{STAGE_TASK_FLOWS[taskFlow].length} tasks</div>
                   <button className="btn btn-primary btn-sm" onClick={applyTaskFlow} disabled={addingFlow}>{addingFlow?'Adding…':'Add tasks'}</button>
                 </>
               )}
             </div>
 
-            {/* Kanban columns */}
-            <div style={{ display:'flex', gap:'1rem', alignItems:'flex-start', overflowX:'auto', paddingBottom:'.5rem' }}>
-              {TASK_STATUSES.map(status => {
-                const col = taskStatusColors[status] || 'var(--muted)'
-                const colTasks = tasks.filter(t => t.status === status)
-                return (
-                  <div key={status} style={{ flex:1, minWidth:160 }}>
-                    <div style={{ display:'flex', alignItems:'center', gap:'.5rem', marginBottom:'.625rem' }}>
-                      <span style={{ fontSize:'.72rem', fontWeight:600, color:col, letterSpacing:'.04em' }}>{status}</span>
-                      <span style={{ fontSize:'.68rem', color:'var(--muted)', fontWeight:400 }}>{colTasks.length}</span>
-                    </div>
-                    {colTasks.map(task => <TaskCard key={task.id} task={task}/>)}
-                    {colTasks.length===0 && <div style={{ textAlign:'center', padding:'1.25rem .5rem', color:'var(--border)', fontSize:'.7rem' }}>—</div>}
-                    <button
-                      onClick={()=>addTskToStatus(status)}
-                      style={{ width:'100%', background:'none', border:'none', padding:'.35rem .1rem', color:'var(--muted)', fontSize:'.7rem', cursor:'pointer', textAlign:'left', display:'flex', alignItems:'center', gap:'.3rem', opacity:.6 }}
-                      onMouseEnter={e=>e.currentTarget.style.opacity=1}
-                      onMouseLeave={e=>e.currentTarget.style.opacity=.6}
-                    >
-                      <span style={{ fontSize:'.85rem', lineHeight:1 }}>+</span> Add task
-                    </button>
-                  </div>
-                )
-              })}
-            </div>
+            {/* Task list */}
+            {(() => {
+              const filtered = getFilteredTasks(taskFilter)
+              if (filtered.length === 0) return (
+                <div style={{ textAlign:'center', padding:'3.5rem 1rem' }}>
+                  <div style={{ fontSize:'1.5rem', marginBottom:'.75rem', opacity:.25 }}>✓</div>
+                  <div style={{ fontFamily:'Cormorant Garamond, Georgia, serif', fontSize:'1.35rem', color:'var(--muted)', marginBottom:'.5rem' }}>Nothing here</div>
+                  <div style={{ fontSize:'.9rem', color:'var(--muted)' }}>No tasks match this filter right now.</div>
+                </div>
+              )
+              return filtered.map(task => <TaskCard key={task.id} task={task}/>)
+            })()}
           </div>
         )}
 
