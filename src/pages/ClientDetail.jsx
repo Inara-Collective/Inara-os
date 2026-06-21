@@ -475,7 +475,7 @@ export default function ClientDetail() {
       {/* Topbar */}
       <div className="topbar">
         <div style={{ display:'flex', alignItems:'center', gap:'1rem' }}>
-          <button className="btn btn-ghost btn-sm" onClick={()=>navigate('/pipeline')}>← Pipeline</button>
+          <button className="btn btn-ghost btn-sm" onClick={()=>navigate(isLead?'/pipeline':'/clients')}>{isLead?'← Leads':'← Clients'}</button>
           <div style={{ fontFamily:'Cormorant Garamond, Georgia, serif', fontSize:'1.3rem' }}>{client.name}</div>
           <span className="badge badge-gold">{client.stage}</span>
           {client.connection_strength && (
