@@ -65,25 +65,68 @@ function MiniBarChart({ data = [12, 20, 16, 28, 22, 34, 48], accent = '#424B63',
   )
 }
 
+function TaskRow({ task, dueDateColor = 'text-muted-foreground' }) {
+  const fmtDate = d => new Date(d).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })
+  return (
+    <div className="flex items-center gap-2.5 py-2 border-b border-border last:border-b-0">
+      <div className="flex-1 min-w-0">
+        <div className="text-xs font-medium text-ink truncate">{task.name}</div>
+        {task.category && <div className="text-[0.58rem] text-muted-foreground">{task.category}</div>}
+      </div>
+      {task.owner && <span className="badge badge-gray text-[0.55rem] flex-shrink-0">{task.owner}</span>}
+      {task.due_date && (
+        <span className={`text-[0.58rem] flex-shrink-0 ${dueDateColor}`}>{fmtDate(task.due_date)}</span>
+      )}
+    </div>
+  )
+}
+
 function ClientHomeSection({ client }) {
   const [healthOpen, setHealthOpen]     = useState(false)
+  const [projectOpen, setProjectOpen]   = useState(false)
   const [tasks, setTasks]               = useState(null)
   const [tasksLoading, setTasksLoading] = useState(false)
 
+  const loadTasks = async () => {
+    if (tasks !== null) return
+    setTasksLoading(true)
+    try {
+      const all = await getClientTasks(client.id)
+      setTasks(all)
+    } catch { setTasks([]) }
+    setTasksLoading(false)
+  }
+
   const toggleHealth = async () => {
-    if (!healthOpen && tasks === null) {
-      setTasksLoading(true)
-      try {
-        const all = await getClientTasks(client.id)
-        setTasks(all)
-      } catch { setTasks([]) }
-      setTasksLoading(false)
-    }
+    await loadTasks()
     setHealthOpen(o => !o)
   }
 
-  const doneTasks     = (tasks || []).filter(t => t.status === 'Done' || t.status === 'Complete')
-  const resolvedTasks = (tasks || []).filter(t => t.status === 'Resolved')
+  const toggleProject = async () => {
+    await loadTasks()
+    setProjectOpen(o => !o)
+  }
+
+  const now = new Date()
+  const t   = tasks || []
+
+  const doneTasks     = t.filter(x => x.status === 'Done' || x.status === 'Complete')
+  const resolvedTasks = t.filter(x => x.status === 'Resolved')
+  const overdueTasks  = t.filter(x =>
+    x.due_date && new Date(x.due_date) < now &&
+    !['Done','Complete','Resolved'].includes(x.status)
+  )
+  const blockedTasks  = t.filter(x => x.status === 'Blocked')
+  const activeTasks   = t.filter(x =>
+    ['Today','Now','In Progress'].includes(x.status) &&
+    !(x.due_date && new Date(x.due_date) < now)
+  )
+  const upcomingTasks = t.filter(x => {
+    if (!x.due_date) return false
+    const d = new Date(x.due_date)
+    const days = Math.ceil((d - now) / 86400000)
+    return days >= 0 && days <= 14 && !['Done','Complete','Resolved','Blocked'].includes(x.status)
+  })
 
   const projectHealth = {
     status: 'On Track',
@@ -132,19 +175,41 @@ function ClientHomeSection({ client }) {
           </div>
         </button>
 
-        <div className="card p-5 col-span-2">
+        <button
+          onClick={toggleProject}
+          className={`card p-5 col-span-2 text-left w-full hover:border-navy/40 transition-colors ${projectOpen ? 'border-navy/40 bg-cream/30' : ''}`}
+        >
           <div className="flex items-center justify-between mb-5">
             <div className="text-[0.58rem] font-semibold uppercase tracking-wider text-muted-foreground">
               Project Health
             </div>
-            <span className={`badge ${projectHealth.statusBadge}`}>{projectHealth.status}</span>
+            <div className="flex items-center gap-2">
+              <span className={`badge ${projectHealth.statusBadge}`}>{projectHealth.status}</span>
+              <span className="text-[0.6rem] text-navy opacity-70">{projectOpen ? '↑ Hide' : '↓ Details'}</span>
+            </div>
           </div>
           <div className="grid grid-cols-4 gap-4">
             {[
-              { label: 'On schedule', value: `${projectHealth.deliverablesOnSchedule} / ${projectHealth.totalDeliverables}`, sub: 'deliverables' },
-              { label: 'Overdue tasks', value: projectHealth.overdueTasksCount, accent: projectHealth.overdueTasksCount > 0 },
-              { label: 'Next milestone', value: `${projectHealth.daysToNextMilestone}d`, sub: 'away' },
-              { label: 'Last activity', value: projectHealth.lastActivity, small: true },
+              {
+                label: 'Active tasks',
+                value: tasks !== null ? activeTasks.length : projectHealth.deliverablesOnSchedule,
+                sub: 'in progress',
+              },
+              {
+                label: 'Overdue',
+                value: tasks !== null ? overdueTasks.length : projectHealth.overdueTasksCount,
+                accent: tasks !== null ? overdueTasks.length > 0 : projectHealth.overdueTasksCount > 0,
+              },
+              {
+                label: 'Blocked',
+                value: tasks !== null ? blockedTasks.length : '—',
+                accent: tasks !== null && blockedTasks.length > 0,
+              },
+              {
+                label: 'Last activity',
+                value: projectHealth.lastActivity,
+                small: true,
+              },
             ].map(({ label, value, sub, accent, small }) => (
               <div key={label}>
                 <div className="text-[0.58rem] text-muted-foreground mb-1.5">{label}</div>
@@ -155,7 +220,7 @@ function ClientHomeSection({ client }) {
               </div>
             ))}
           </div>
-        </div>
+        </button>
       </div>
 
       {/* Health detail panel */}
@@ -226,6 +291,91 @@ function ClientHomeSection({ client }) {
                   ))}
                 </div>
               )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Project health detail panel */}
+      {projectOpen && (
+        <div className="card p-5 mb-4">
+          <div className="flex items-center justify-between mb-5">
+            <div className="text-[0.58rem] font-semibold uppercase tracking-wider text-muted-foreground">
+              Project breakdown
+            </div>
+            <button
+              onClick={() => setProjectOpen(false)}
+              className="text-xs text-muted-foreground hover:text-ink transition-colors w-5 h-5 flex items-center justify-center rounded"
+            >
+              ✕
+            </button>
+          </div>
+
+          {tasksLoading ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+              <span className="spinner" /> Loading tasks…
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-6">
+              {/* Overdue */}
+              <div>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <div className="w-2 h-2 rounded-full bg-red-400 flex-shrink-0" />
+                  <span className="text-[0.58rem] font-semibold uppercase tracking-wider text-red-500">
+                    Overdue ({overdueTasks.length})
+                  </span>
+                </div>
+                {overdueTasks.length === 0 ? (
+                  <p className="text-xs text-muted-foreground italic">None — great work!</p>
+                ) : overdueTasks.map(task => (
+                  <TaskRow key={task.id} task={task} dueDateColor="text-red-500" />
+                ))}
+              </div>
+
+              {/* Blocked */}
+              <div>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <div className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" />
+                  <span className="text-[0.58rem] font-semibold uppercase tracking-wider text-amber-600">
+                    Blocked ({blockedTasks.length})
+                  </span>
+                </div>
+                {blockedTasks.length === 0 ? (
+                  <p className="text-xs text-muted-foreground italic">Nothing blocked.</p>
+                ) : blockedTasks.map(task => (
+                  <TaskRow key={task.id} task={task} />
+                ))}
+              </div>
+
+              {/* Active / in progress */}
+              <div>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <div className="w-2 h-2 rounded-full bg-navy flex-shrink-0" />
+                  <span className="text-[0.58rem] font-semibold uppercase tracking-wider text-navy">
+                    Active ({activeTasks.length})
+                  </span>
+                </div>
+                {activeTasks.length === 0 ? (
+                  <p className="text-xs text-muted-foreground italic">No active tasks right now.</p>
+                ) : activeTasks.map(task => (
+                  <TaskRow key={task.id} task={task} />
+                ))}
+              </div>
+
+              {/* Upcoming (next 14 days) */}
+              <div>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <div className="w-2 h-2 rounded-full bg-bluegrey flex-shrink-0" />
+                  <span className="text-[0.58rem] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Due soon ({upcomingTasks.length})
+                  </span>
+                </div>
+                {upcomingTasks.length === 0 ? (
+                  <p className="text-xs text-muted-foreground italic">Nothing due in the next 14 days.</p>
+                ) : upcomingTasks.map(task => (
+                  <TaskRow key={task.id} task={task} />
+                ))}
+              </div>
             </div>
           )}
         </div>
