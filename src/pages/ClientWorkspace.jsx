@@ -65,7 +65,7 @@ function MiniBarChart({ data = [12, 20, 16, 28, 22, 34, 48], accent = '#424B63',
   )
 }
 
-function ClientHomeSection({ client, onNavigate }) {
+function ClientHomeSection({ client }) {
   const projectHealth = {
     status: 'On Track',
     statusBadge: 'badge-sage',
@@ -87,15 +87,6 @@ function ClientHomeSection({ client, onNavigate }) {
     { label: 'Website updates in progress',   count: 2 },
     { label: 'Campaigns in progress',          count: 1 },
     { label: 'Events upcoming',               count: 2 },
-  ]
-
-  const quickLinks = [
-    { label: 'Content Hub',        icon: '◈', section: 'content' },
-    { label: 'Email Marketing',    icon: '✉', section: 'email' },
-    { label: 'Website',            icon: '◎', section: 'website' },
-    { label: 'Payments',           icon: '◷', section: 'payments' },
-    { label: 'Events & Campaigns', icon: '◉', section: 'content' },
-    { label: 'Monthly Reports',    icon: '◌', section: 'reporting' },
   ]
 
   return (
@@ -192,41 +183,21 @@ function ClientHomeSection({ client, onNavigate }) {
         </div>
       </div>
 
-      {/* Row 3: This Month at a Glance + Quick Links */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="card p-5 col-span-2">
-          <div className="flex items-center justify-between mb-4">
-            <div className="text-[0.58rem] font-semibold uppercase tracking-wider text-muted-foreground">
-              This Month at a Glance
-            </div>
-            <button className="text-[0.63rem] text-navy hover:underline">View full calendar →</button>
+      {/* Row 3: This Month at a Glance */}
+      <div className="card p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div className="text-[0.58rem] font-semibold uppercase tracking-wider text-muted-foreground">
+            This Month at a Glance
           </div>
-          <div className="space-y-0">
-            {glanceItems.map((item, i) => (
-              <div key={i} className="flex items-center justify-between py-2.5 border-b border-border last:border-b-0">
-                <span className="text-xs text-ink">{item.label}</span>
-                <span className="badge badge-gray">{item.count}</span>
-              </div>
-            ))}
-          </div>
+          <button className="text-[0.63rem] text-navy hover:underline">View full calendar →</button>
         </div>
-
-        <div className="card p-5">
-          <div className="text-[0.58rem] font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-            Quick Links
-          </div>
-          <div className="space-y-0.5">
-            {quickLinks.map((link, i) => (
-              <button
-                key={i}
-                onClick={() => onNavigate(link.section)}
-                className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-xs text-ink hover:bg-cream transition-colors text-left"
-              >
-                <span className="text-muted-foreground text-sm w-4 text-center">{link.icon}</span>
-                {link.label}
-              </button>
-            ))}
-          </div>
+        <div className="space-y-0">
+          {glanceItems.map((item, i) => (
+            <div key={i} className="flex items-center justify-between py-2.5 border-b border-border last:border-b-0">
+              <span className="text-xs text-ink">{item.label}</span>
+              <span className="badge badge-gray">{item.count}</span>
+            </div>
+          ))}
         </div>
       </div>
     </div>
@@ -284,7 +255,7 @@ export default function ClientWorkspace() {
   const renderSection = () => {
     switch (activeSection) {
       case 'home':
-        return <ClientHomeSection client={client} onNavigate={setActiveSection} />
+        return <ClientHomeSection client={client} />
       default: {
         const sec = SECTIONS.find(s => s.id === activeSection)
         return <StubSection label={sec?.label || activeSection} />
