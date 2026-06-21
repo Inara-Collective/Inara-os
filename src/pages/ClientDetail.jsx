@@ -10,10 +10,12 @@ import {
   getClientComments, createClientComment,
   getClientEmails, createClientEmail,
   getUsers,
+  getContentItems, createContentItem, updateContentItem, deleteContentItem,
   PIPELINE_STAGES, SALES_STAGES, PACKAGES,
   TASK_STATUSES, TASK_OWNERS, ALL_MODULES, MUST_MODULES,
   ACTION_TAKEN_OPTIONS, NEXT_ACTION_OPTIONS,
-  OPPORTUNITY_TAGS, RELATIONSHIP_ACTIONS, CONNECTION_STRENGTHS, STAGE_TASK_FLOWS
+  OPPORTUNITY_TAGS, RELATIONSHIP_ACTIONS, CONNECTION_STRENGTHS, STAGE_TASK_FLOWS,
+  CONTENT_TYPES, CONTENT_PLATFORMS, CONTENT_STATUSES
 } from '../lib/supabase.js'
 
 /* ── helpers ── */
@@ -128,8 +130,9 @@ export default function ClientDetail() {
   const [expandedMonth, setExpandedMonth] = useState(null)
   const [showAddSuggestion, setShowAddSuggestion] = useState(false)
   const [newSuggestionForm, setNewSuggestionForm] = useState({ title:'', reason:'', impact:'', priority:'Medium', status:'Pending' })
+  const [contentItems, setContentItems] = useState([])
   const [showAddContent, setShowAddContent] = useState(false)
-  const [newContentForm, setNewContentForm] = useState({ title:'', type:'Post', platforms:[], status:'Ideas', due_date:'' })
+  const [newContentForm, setNewContentForm] = useState({ title:'', status:'Ideas', platform:'', content_type:'', priority:'Medium', due_date:'' })
   const [showAddCampaign, setShowAddCampaign] = useState(false)
   const [newCampaignForm, setNewCampaignForm] = useState({ subject:'', sent_date:'', opens:'', clicks:'', status:'Draft' })
   const [websiteSubTab, setWebsiteSubTab] = useState('Tasks')
@@ -148,6 +151,7 @@ export default function ClientDetail() {
   useEffect(() => {
     if (tab === 'comments') getClientComments(id).then(setComments).catch(() => {})
     if (tab === 'emails' || tab === 'home') getClientEmails(id).then(setEmails).catch(() => {})
+    if (tab === 'content') getContentItems(id).then(setContentItems).catch(() => {})
   }, [tab, id])
 
   const upd = async (field, value) => {
@@ -1167,44 +1171,73 @@ export default function ClientDetail() {
 
         {/* ── CONTENT HUB ── */}
         {tab==='content'&&(()=>{
-          const contentItems = (() => { try { return JSON.parse(client.content_items||'[]') } catch(e) { return [] } })()
-          const saveContent = arr => upd('content_items', JSON.stringify(arr))
-          const CONTENT_COLS = ['Ideas','In Progress','In Review','Approved','Published']
-          const TYPE_COLORS = { 'Carousel':'#9FBBD0', 'Reel':'#E8B4C8', 'Post':'#A8C5A0', 'Story':'#F4C97B', 'Email':'#B4A8D8', 'Video':'#F4A87C' }
-          const PLATFORMS = ['IG','FB','LinkedIn','TikTok','Email']
-          const moveItem = (item, dir) => {
-            const ci = CONTENT_COLS.indexOf(item.status)
-            const ni = ci + dir
-            if (ni < 0 || ni >= CONTENT_COLS.length) return
-            saveContent(contentItems.map(i => i.id===item.id ? {...i, status:CONTENT_COLS[ni]} : i))
+          const COLS = [
+            { label:'Ideas', statuses:['Ideas'], color:'var(--muted)', nextStatus:'Writing / Drafting' },
+            { label:'In Progress', statuses:['Strategy Approved','Writing / Drafting','Design / Editing'], color:'var(--mist-blue)', nextStatus:'Internal Review' },
+            { label:'In Review', statuses:['Internal Review','Ready for Client Review','Sent to Client','Client Feedback Received'], color:'var(--amber)', nextStatus:'Approved' },
+            { label:'Approved', statuses:['Approved','Scheduled'], color:'#4A8A60', nextStatus:'Posted / Sent / Live' },
+            { label:'Published', statuses:['Posted / Sent / Live','Reported'], color:'var(--teal)', nextStatus:null },
+          ]
+          const TYPE_COLORS = { 'Reel':'#E8B4C8', 'Carousel':'#9FBBD0', 'Static Post':'#A8C5A0', 'Story':'#F4C97B', 'Video':'#B4A8D8', 'Email':'#F4A87C', 'Blog Post':'#A8C5C0' }
+
+          const moveForward = async (item, colIdx) => {
+            const nextStatus = COLS[colIdx].nextStatus
+            if (!nextStatus) return
+            const updated = await updateContentItem(item.id, { status: nextStatus })
+            setContentItems(p => p.map(i => i.id===item.id ? updated : i))
           }
-          const COL_COLORS = ['var(--muted)','var(--mist-blue)','var(--amber)','#4A8A60','var(--teal)']
+          const moveBack = async (item, colIdx) => {
+            const prevStatus = COLS[colIdx-1]?.statuses[0]
+            if (!prevStatus) return
+            const updated = await updateContentItem(item.id, { status: prevStatus })
+            setContentItems(p => p.map(i => i.id===item.id ? updated : i))
+          }
+          const removeItem = async (item) => {
+            await deleteContentItem(item.id)
+            setContentItems(p => p.filter(i => i.id!==item.id))
+          }
+          const addItem = async () => {
+            if (!newContentForm.title.trim()) return
+            const created = await createContentItem({ ...newContentForm, client_id:id, due_date:newContentForm.due_date||null })
+            setContentItems(p => [...p, created])
+            setShowAddContent(false)
+            setNewContentForm({ title:'', status:'Ideas', platform:'', content_type:'', priority:'Medium', due_date:'' })
+          }
+
           return (
             <div>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'1.25rem' }}>
                 <div>
                   <div style={{ fontFamily:'Cormorant Garamond,Georgia,serif', fontSize:'1.6rem', fontWeight:400 }}>Content Hub</div>
-                  <div style={{ fontSize:'.85rem', color:'var(--muted)' }}>Track content ideas, drafts, and published pieces for {client.name?.split(' ')[0]}.</div>
+                  <div style={{ fontSize:'.85rem', color:'var(--muted)' }}>Track content ideas, drafts, and published pieces for {client.name?.split(' ')[0]}. Also visible on the global Content Board.</div>
                 </div>
                 <button className="btn btn-primary" onClick={()=>setShowAddContent(v=>!v)}>+ Add Content</button>
               </div>
 
               {showAddContent&&(
                 <div className="card" style={{ marginBottom:'1.25rem', border:'1.5px solid var(--mist-blue)' }}>
-                  <div className="card-head"><div className="card-title">New Content Item</div></div>
+                  <div className="card-head"><div className="card-title">New Content Piece</div></div>
                   <div className="card-body" style={{ display:'flex', flexDirection:'column', gap:'.75rem' }}>
-                    <input className="form-input" placeholder="Content title or idea…" value={newContentForm.title} onChange={e=>setNewContentForm(f=>({...f,title:e.target.value}))}/>
-                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'.75rem' }}>
-                      <div>
-                        <div style={{ fontSize:'.6rem', letterSpacing:'.12em', textTransform:'uppercase', color:'var(--muted)', fontWeight:600, marginBottom:'.4rem' }}>Type</div>
-                        <select className="form-select" value={newContentForm.type} onChange={e=>setNewContentForm(f=>({...f,type:e.target.value}))}>
-                          {Object.keys(TYPE_COLORS).map(t=><option key={t}>{t}</option>)}
-                        </select>
-                      </div>
+                    <input className="form-input" placeholder="Content title or idea…" value={newContentForm.title} onChange={e=>setNewContentForm(f=>({...f,title:e.target.value}))} autoFocus/>
+                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'.75rem' }}>
                       <div>
                         <div style={{ fontSize:'.6rem', letterSpacing:'.12em', textTransform:'uppercase', color:'var(--muted)', fontWeight:600, marginBottom:'.4rem' }}>Start in</div>
                         <select className="form-select" value={newContentForm.status} onChange={e=>setNewContentForm(f=>({...f,status:e.target.value}))}>
-                          {CONTENT_COLS.map(c=><option key={c}>{c}</option>)}
+                          {CONTENT_STATUSES.map(s=><option key={s}>{s}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <div style={{ fontSize:'.6rem', letterSpacing:'.12em', textTransform:'uppercase', color:'var(--muted)', fontWeight:600, marginBottom:'.4rem' }}>Type</div>
+                        <select className="form-select" value={newContentForm.content_type} onChange={e=>setNewContentForm(f=>({...f,content_type:e.target.value}))}>
+                          <option value="">—</option>
+                          {CONTENT_TYPES.map(t=><option key={t}>{t}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <div style={{ fontSize:'.6rem', letterSpacing:'.12em', textTransform:'uppercase', color:'var(--muted)', fontWeight:600, marginBottom:'.4rem' }}>Platform</div>
+                        <select className="form-select" value={newContentForm.platform} onChange={e=>setNewContentForm(f=>({...f,platform:e.target.value}))}>
+                          <option value="">—</option>
+                          {CONTENT_PLATFORMS.map(p=><option key={p}>{p}</option>)}
                         </select>
                       </div>
                       <div>
@@ -1212,54 +1245,47 @@ export default function ClientDetail() {
                         <input type="date" className="form-input" value={newContentForm.due_date} onChange={e=>setNewContentForm(f=>({...f,due_date:e.target.value}))}/>
                       </div>
                     </div>
-                    <div>
-                      <div style={{ fontSize:'.6rem', letterSpacing:'.12em', textTransform:'uppercase', color:'var(--muted)', fontWeight:600, marginBottom:'.4rem' }}>Platforms</div>
-                      <div style={{ display:'flex', gap:'.4rem', flexWrap:'wrap' }}>
-                        {PLATFORMS.map(p=>{
-                          const active=(newContentForm.platforms||[]).includes(p)
-                          return <button key={p} onClick={()=>setNewContentForm(f=>({...f,platforms:active?f.platforms.filter(x=>x!==p):[...f.platforms,p]}))} style={{ padding:'.2rem .55rem', borderRadius:'4px', fontSize:'.72rem', cursor:'pointer', fontFamily:'inherit', border:`1.5px solid ${active?'var(--mist-blue)':'var(--border)'}`, background:active?'var(--pale-cloud)':'transparent', color:active?'#2E6080':'var(--muted)' }}>{p}</button>
-                        })}
-                      </div>
-                    </div>
                     <div style={{ display:'flex', justifyContent:'flex-end', gap:'.5rem' }}>
-                      <button className="btn btn-ghost btn-sm" onClick={()=>{setShowAddContent(false);setNewContentForm({title:'',type:'Post',platforms:[],status:'Ideas',due_date:''})}}>Cancel</button>
-                      <button className="btn btn-primary btn-sm" onClick={()=>{if(!newContentForm.title.trim())return;saveContent([...contentItems,{...newContentForm,id:Date.now()}]);setShowAddContent(false);setNewContentForm({title:'',type:'Post',platforms:[],status:'Ideas',due_date:''})}}>Add</button>
+                      <button className="btn btn-ghost btn-sm" onClick={()=>{setShowAddContent(false);setNewContentForm({title:'',status:'Ideas',platform:'',content_type:'',priority:'Medium',due_date:''})}}>Cancel</button>
+                      <button className="btn btn-primary btn-sm" onClick={addItem} disabled={!newContentForm.title.trim()}>Add</button>
                     </div>
                   </div>
                 </div>
               )}
 
               <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:'.875rem' }}>
-                {CONTENT_COLS.map((col,ci)=>{
-                  const colItems = contentItems.filter(i=>i.status===col)
+                {COLS.map((col,ci)=>{
+                  const colItems = contentItems.filter(i=>col.statuses.includes(i.status))
                   return (
-                    <div key={col}>
+                    <div key={col.label}>
                       <div style={{ display:'flex', alignItems:'center', gap:'.5rem', marginBottom:'.75rem' }}>
-                        <div style={{ width:8, height:8, borderRadius:'50%', background:COL_COLORS[ci], flexShrink:0 }}/>
-                        <span style={{ fontSize:'.62rem', letterSpacing:'.12em', textTransform:'uppercase', color:'var(--muted)', fontWeight:600 }}>{col}</span>
+                        <div style={{ width:8, height:8, borderRadius:'50%', background:col.color, flexShrink:0 }}/>
+                        <span style={{ fontSize:'.62rem', letterSpacing:'.12em', textTransform:'uppercase', color:'var(--muted)', fontWeight:600 }}>{col.label}</span>
                         <span style={{ fontSize:'.65rem', color:'var(--muted)', marginLeft:'auto' }}>{colItems.length}</span>
                       </div>
                       <div style={{ display:'flex', flexDirection:'column', gap:'.5rem' }}>
-                        {colItems.map(item=>(
-                          <div key={item.id} style={{ background:'var(--warm)', border:'.5px solid var(--border)', borderRadius:'10px', overflow:'hidden' }}>
-                            <div style={{ height:4, background:TYPE_COLORS[item.type]||'var(--border)' }}/>
-                            <div style={{ padding:'.75rem .75rem .5rem' }}>
-                              <div style={{ fontSize:'.85rem', fontWeight:600, color:'var(--dark)', lineHeight:1.35, marginBottom:'.4rem' }}>{item.title}</div>
-                              <div style={{ display:'flex', alignItems:'center', gap:'.3rem', flexWrap:'wrap', marginBottom:'.35rem' }}>
-                                <span style={{ fontSize:'.6rem', padding:'.15rem .4rem', borderRadius:'4px', background:`${TYPE_COLORS[item.type]||'#ccc'}30`, color:TYPE_COLORS[item.type]||'var(--muted)', fontWeight:600 }}>{item.type}</span>
-                                {(item.platforms||[]).map(p=>(
-                                  <span key={p} style={{ fontSize:'.6rem', padding:'.15rem .35rem', borderRadius:'4px', background:'var(--bg)', border:'.5px solid var(--border)', color:'var(--muted)' }}>{p}</span>
-                                ))}
+                        {colItems.map(item=>{
+                          const typeColor = TYPE_COLORS[item.content_type]||'var(--border)'
+                          return (
+                            <div key={item.id} style={{ background:'var(--warm)', border:'.5px solid var(--border)', borderRadius:'10px', overflow:'hidden' }}>
+                              <div style={{ height:4, background:typeColor }}/>
+                              <div style={{ padding:'.75rem .75rem .5rem' }}>
+                                <div style={{ fontSize:'.85rem', fontWeight:600, color:'var(--dark)', lineHeight:1.35, marginBottom:'.4rem' }}>{item.title}</div>
+                                <div style={{ display:'flex', alignItems:'center', gap:'.3rem', flexWrap:'wrap' }}>
+                                  {item.content_type&&<span style={{ fontSize:'.6rem', padding:'.15rem .4rem', borderRadius:'4px', background:`${typeColor}30`, color:typeColor==='var(--border)'?'var(--muted)':typeColor, fontWeight:600 }}>{item.content_type}</span>}
+                                  {item.platform&&<span style={{ fontSize:'.6rem', padding:'.15rem .35rem', borderRadius:'4px', background:'var(--bg)', border:'.5px solid var(--border)', color:'var(--muted)' }}>{item.platform}</span>}
+                                  {item.priority==='High'&&<span style={{ fontSize:'.6rem', color:'var(--red)', fontWeight:700 }}>!</span>}
+                                </div>
+                                {item.due_date&&<div style={{ fontSize:'.68rem', color:'var(--muted)', marginTop:'.3rem' }}>📅 {new Date(item.due_date).toLocaleDateString('en-NZ',{day:'numeric',month:'short'})}</div>}
                               </div>
-                              {item.due_date&&<div style={{ fontSize:'.68rem', color:'var(--muted)' }}>📅 {new Date(item.due_date+'T00:00').toLocaleDateString('en-NZ',{day:'numeric',month:'short'})}</div>}
+                              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'.35rem .5rem', borderTop:'.5px solid var(--border)' }}>
+                                <button onClick={()=>moveBack(item,ci)} disabled={ci===0} style={{ background:'none', border:'none', cursor:ci===0?'default':'pointer', color:ci===0?'var(--border)':'var(--muted)', fontSize:'.72rem', padding:'.1rem .3rem', fontFamily:'inherit' }}>← Back</button>
+                                <button onClick={()=>removeItem(item)} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--muted)', fontSize:'.65rem', padding:'.1rem .3rem', fontFamily:'inherit', opacity:.5 }}>✕</button>
+                                <button onClick={()=>moveForward(item,ci)} disabled={!col.nextStatus} style={{ background:'none', border:'none', cursor:col.nextStatus?'pointer':'default', color:col.nextStatus?'var(--mist-blue)':'var(--border)', fontSize:'.72rem', padding:'.1rem .3rem', fontFamily:'inherit', fontWeight:600 }}>Move →</button>
+                              </div>
                             </div>
-                            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'.35rem .5rem', borderTop:'.5px solid var(--border)' }}>
-                              <button onClick={()=>moveItem(item,-1)} disabled={ci===0} style={{ background:'none', border:'none', cursor:ci===0?'default':'pointer', color:ci===0?'var(--border)':'var(--muted)', fontSize:'.72rem', padding:'.1rem .3rem', fontFamily:'inherit' }}>← Back</button>
-                              <button onClick={()=>saveContent(contentItems.filter(i=>i.id!==item.id))} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--muted)', fontSize:'.65rem', padding:'.1rem .3rem', fontFamily:'inherit', opacity:.6 }}>✕</button>
-                              <button onClick={()=>moveItem(item,1)} disabled={ci===CONTENT_COLS.length-1} style={{ background:'none', border:'none', cursor:ci===CONTENT_COLS.length-1?'default':'pointer', color:ci===CONTENT_COLS.length-1?'var(--border)':'var(--mist-blue)', fontSize:'.72rem', padding:'.1rem .3rem', fontFamily:'inherit', fontWeight:600 }}>Move →</button>
-                            </div>
-                          </div>
-                        ))}
+                          )
+                        })}
                         {colItems.length===0&&(
                           <div style={{ textAlign:'center', padding:'1.25rem .5rem', color:'var(--border)', fontSize:'.75rem', border:'1.5px dashed var(--border)', borderRadius:'8px' }}>Empty</div>
                         )}
