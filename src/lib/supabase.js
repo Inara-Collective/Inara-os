@@ -230,6 +230,32 @@ export const deleteContentItem = async (id) => {
   if (error) throw error
 }
 
+export const getMessages = async (myId, otherId) => {
+  const { data, error } = await supabase
+    .from('messages')
+    .select('*')
+    .or(`sender_id.eq.${myId},recipient_id.eq.${myId}`)
+    .order('created_at')
+  if (error) throw error
+  return (data || []).filter(m =>
+    (m.sender_id === myId && m.recipient_id === otherId) ||
+    (m.sender_id === otherId && m.recipient_id === myId)
+  )
+}
+
+export const sendMessage = async (msg) => {
+  const { data, error } = await supabase.from('messages').insert([msg]).select().single()
+  if (error) throw error
+  return data
+}
+
+export const markMessagesRead = async (myId, otherId) => {
+  await supabase.from('messages').update({ read_at: new Date().toISOString() })
+    .eq('recipient_id', myId).eq('sender_id', otherId).is('read_at', null)
+}
+
+export const TASK_CATEGORIES = ['Client Work', 'Content', 'Systems & Automation', 'Admin', 'Sales', 'Internal', 'Training']
+
 export const ACTION_TAKEN_OPTIONS = ['Emailed','Called',"DM'd",'Met in person','Sent proposal','Sent invoice','Sent contract','Left voicemail','Sent follow-up','Made intro']
 export const NEXT_ACTION_OPTIONS = ['Send email','Make call','Send proposal','Follow up','Schedule meeting','Book discovery call','Send contract','Send invoice','Await response','No action needed']
 export const CONNECTION_STRENGTHS = ['Cold','Warm','Hot','Existing relationship','Referral','Past client','Event connection']

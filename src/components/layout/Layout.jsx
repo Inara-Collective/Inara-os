@@ -9,6 +9,7 @@ const NAV_SECTIONS = [
     items: [
       { to: '/', label: 'Home', icon: '⬡', exact: true },
       { to: '/my-board', label: 'My Board', icon: '◫' },
+      { to: '/messaging', label: 'Messaging', icon: '◉' },
     ],
   },
   {
