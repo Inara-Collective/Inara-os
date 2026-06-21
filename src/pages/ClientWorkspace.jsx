@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../App.jsx'
 import { getClient, getClientTasks } from '../lib/supabase.js'
 import ContentBoard from './workspace/ContentBoard.jsx'
+import Meetings from './workspace/Meetings.jsx'
 
 const SECTIONS = [
   { id: 'home',         label: 'Client Home' },
@@ -507,6 +508,8 @@ export default function ClientWorkspace() {
         return <ClientHomeSection client={client} />
       case 'content':
         return <ContentBoard client={client} />
+      case 'meetings':
+        return <Meetings client={client} />
       default: {
         const sec = SECTIONS.find(s => s.id === activeSection)
         return <StubSection label={sec?.label || activeSection} />
