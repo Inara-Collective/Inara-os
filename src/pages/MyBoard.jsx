@@ -2,10 +2,9 @@ import React, { useState, useEffect } from 'react'
 import { getAllTasks, createTask, updateTask, deleteTask, getClients, TASK_STATUSES, TASK_OWNERS } from '../lib/supabase.js'
 import { useAuth } from '../App.jsx'
 
-const STATUS_COLOR = { 'To Do': 'var(--blue)', 'In Progress': 'var(--amber)', 'Awaiting Approval': 'var(--purple)', 'Blocked': 'var(--red)', 'Complete': 'var(--teal)' }
-
-const MY_OWNER_MAP = {
-  maxine: 'Maxine',
+const STATUS_COLOR = {
+  'Today': 'var(--red)', 'Now': 'var(--amber)', 'Soon': 'var(--blue)', 'Waiting': 'var(--muted)', 'Done': 'var(--teal)',
+  'To Do': 'var(--blue)', 'In Progress': 'var(--amber)', 'Awaiting Approval': 'var(--purple)', 'Blocked': 'var(--red)', 'Complete': 'var(--teal)',
 }
 
 export default function MyBoard() {
@@ -16,7 +15,7 @@ export default function MyBoard() {
   const [showNew, setShowNew] = useState(false)
   const [expanded, setExpanded] = useState({})
 
-  const myOwner = MY_OWNER_MAP[profile?.name?.toLowerCase()] || profile?.name || 'Maxine'
+  const myOwner = profile?.name || 'Maxine'
 
   useEffect(() => {
     Promise.all([getAllTasks(), getClients()])
@@ -24,8 +23,18 @@ export default function MyBoard() {
       .catch(() => setLoading(false))
   }, [])
 
-  const mine = tasks.filter(t => t.owner === myOwner && t.status !== 'Complete')
-  const completed = tasks.filter(t => t.owner === myOwner && t.status === 'Complete')
+  const mine = tasks.filter(t => t.owner === myOwner)
+  const active = mine.filter(t => t.status !== 'Complete' && t.status !== 'Done')
+  const done = mine.filter(t => t.status === 'Complete' || t.status === 'Done')
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const nextWeek = new Date(today)
+  nextWeek.setDate(nextWeek.getDate() + 7)
+
+  const overdue = active.filter(t => t.due_date && new Date(t.due_date) < today)
+  const thisWeek = active.filter(t => t.due_date && new Date(t.due_date) >= today && new Date(t.due_date) <= nextWeek)
+  const upcoming = active.filter(t => !t.due_date || new Date(t.due_date) > nextWeek)
 
   const upd = async (id, field, value) => {
     const u = await updateTask(id, { [field]: value })
@@ -49,61 +58,71 @@ export default function MyBoard() {
         </div>
       </div>
       <div className="page">
-        {mine.length === 0 && (
+        {active.length === 0 && (
           <div className="empty">
             <div className="empty-title">All clear</div>
             <div className="empty-sub">No open tasks assigned to you.</div>
           </div>
         )}
-        {TASK_STATUSES.filter(s => s !== 'Complete').map(status => {
-          const col = mine.filter(t => t.status === status)
-          if (col.length === 0) return null
+
+        {[
+          { label: 'Overdue', items: overdue, headerColor: 'var(--red)', headerBg: 'rgba(184,74,74,.06)' },
+          { label: 'This Week', items: thisWeek, headerColor: 'var(--amber)', headerBg: 'rgba(184,149,106,.06)' },
+          { label: 'Upcoming', items: upcoming, headerColor: 'var(--blue)', headerBg: 'rgba(159,187,208,.1)' },
+        ].map(({ label, items, headerColor, headerBg }) => {
+          if (items.length === 0) return null
           return (
-            <div key={status} style={{ marginBottom: '1.5rem' }}>
-              <div style={{ fontSize: '.58rem', letterSpacing: '.18em', textTransform: 'uppercase', color: STATUS_COLOR[status], fontWeight: 600, marginBottom: '.75rem' }}>
-                {status} <span style={{ color: 'var(--muted)', fontWeight: 400 }}>({col.length})</span>
+            <div key={label} style={{ marginBottom: '2rem' }}>
+              <div style={{ fontSize: '.58rem', letterSpacing: '.18em', textTransform: 'uppercase', color: headerColor, fontWeight: 600, marginBottom: '.75rem', padding: '.32rem .625rem', background: headerBg, borderRadius: '6px', display: 'inline-flex', alignItems: 'center', gap: '.5rem' }}>
+                {label} <span style={{ color: 'var(--muted)', fontWeight: 400 }}>({items.length})</span>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(260px,1fr))', gap: '.75rem' }}>
-                {col.map(t => (
-                  <div key={t.id} style={{ background: status === 'Blocked' ? 'var(--red-bg)' : 'var(--warm)', border: `.5px solid ${status === 'Blocked' ? 'var(--red-b)' : 'var(--border)'}`, borderRadius: '8px', overflow: 'hidden', borderLeft: `2px solid ${STATUS_COLOR[status]}` }}>
-                    <div onClick={() => tog(t.id)} style={{ padding: '.75rem 1rem', cursor: 'pointer' }}>
-                      <div style={{ fontSize: '.8rem', fontWeight: 500, marginBottom: '.3rem', lineHeight: 1.4, color: status === 'Blocked' ? 'var(--red)' : 'var(--dark)' }}>{t.name}</div>
-                      <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                        {t.clients?.name && <span style={{ fontSize: '.64rem', color: 'var(--muted)' }}>{t.clients.name}</span>}
-                        {t.due_date && (
-                          <span style={{ fontSize: '.62rem', color: new Date(t.due_date) < new Date() ? 'var(--red)' : 'var(--muted)' }}>
-                            Due {new Date(t.due_date).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })}
-                          </span>
-                        )}
+                {items.map(t => {
+                  const statusColor = STATUS_COLOR[t.status] || 'var(--muted)'
+                  const isOverdue = t.due_date && new Date(t.due_date) < today
+                  return (
+                    <div key={t.id} style={{ background: 'var(--warm)', border: '.5px solid var(--border)', borderRadius: '8px', overflow: 'hidden', borderLeft: `2.5px solid ${statusColor}` }}>
+                      <div onClick={() => tog(t.id)} style={{ padding: '.75rem 1rem', cursor: 'pointer' }}>
+                        <div style={{ fontSize: '.8rem', fontWeight: 500, marginBottom: '.35rem', lineHeight: 1.4 }}>{t.name}</div>
+                        <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                          {t.clients?.name && <span style={{ fontSize: '.64rem', color: 'var(--muted)' }}>{t.clients.name}</span>}
+                          <span style={{ fontSize: '.6rem', color: statusColor, background: `${statusColor}18`, padding: '.12rem .4rem', borderRadius: '4px', fontWeight: 500 }}>{t.status}</span>
+                          {t.due_date && (
+                            <span style={{ fontSize: '.62rem', color: isOverdue ? 'var(--red)' : 'var(--muted)' }}>
+                              {isOverdue ? 'Overdue ' : 'Due '}
+                              {new Date(t.due_date).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })}
+                            </span>
+                          )}
+                        </div>
                       </div>
+                      {expanded[t.id] && (
+                        <div style={{ padding: '.625rem 1rem', borderTop: '.5px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
+                          <select className="form-select" style={{ fontSize: '.72rem', padding: '.3rem .5rem' }} value={t.status} onChange={e => upd(t.id, 'status', e.target.value)}>
+                            {TASK_STATUSES.map(s => <option key={s}>{s}</option>)}
+                          </select>
+                          <select className="form-select" style={{ fontSize: '.72rem', padding: '.3rem .5rem' }} value={t.client_id || ''} onChange={e => upd(t.id, 'client_id', e.target.value)}>
+                            <option value="">No client</option>
+                            {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                          </select>
+                          <input type="date" className="form-input" style={{ fontSize: '.72rem', padding: '.3rem .5rem' }} value={t.due_date || ''} onChange={e => upd(t.id, 'due_date', e.target.value)} />
+                          <button className="btn btn-danger btn-xs" onClick={() => del(t.id)} style={{ alignSelf: 'flex-start' }}>Delete</button>
+                        </div>
+                      )}
                     </div>
-                    {expanded[t.id] && (
-                      <div style={{ padding: '.625rem 1rem', borderTop: '.5px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
-                        <select className="form-select" style={{ fontSize: '.72rem', padding: '.3rem .5rem' }} value={t.status} onChange={e => upd(t.id, 'status', e.target.value)}>
-                          {TASK_STATUSES.map(s => <option key={s}>{s}</option>)}
-                        </select>
-                        <select className="form-select" style={{ fontSize: '.72rem', padding: '.3rem .5rem' }} value={t.client_id || ''} onChange={e => upd(t.id, 'client_id', e.target.value)}>
-                          <option value="">No client</option>
-                          {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                        </select>
-                        <input type="date" className="form-input" style={{ fontSize: '.72rem', padding: '.3rem .5rem' }} value={t.due_date || ''} onChange={e => upd(t.id, 'due_date', e.target.value)} />
-                        <button className="btn btn-danger btn-xs" onClick={() => del(t.id)} style={{ alignSelf: 'flex-start' }}>Delete</button>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           )
         })}
 
-        {completed.length > 0 && (
-          <div style={{ marginTop: '1.5rem' }}>
+        {done.length > 0 && (
+          <div style={{ marginTop: '1rem', opacity: .55 }}>
             <div style={{ fontSize: '.58rem', letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--teal)', fontWeight: 600, marginBottom: '.75rem' }}>
-              Done <span style={{ color: 'var(--muted)', fontWeight: 400 }}>({completed.length})</span>
+              Done <span style={{ color: 'var(--muted)', fontWeight: 400 }}>({done.length})</span>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(260px,1fr))', gap: '.75rem', opacity: .65 }}>
-              {completed.slice(0, 8).map(t => (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: '.5rem' }}>
+              {done.slice(0, 8).map(t => (
                 <div key={t.id} style={{ background: 'var(--warm)', border: '.5px solid var(--border)', borderRadius: '8px', padding: '.65rem 1rem', borderLeft: '2px solid var(--teal)' }}>
                   <div style={{ fontSize: '.78rem', fontWeight: 500, textDecoration: 'line-through', color: 'var(--muted)' }}>{t.name}</div>
                   {t.clients?.name && <div style={{ fontSize: '.64rem', color: 'var(--muted)', marginTop: '.2rem' }}>{t.clients.name}</div>}
@@ -130,7 +149,7 @@ export default function MyBoard() {
 }
 
 function NewTaskForm({ clients, defaultOwner, onSave, onCancel }) {
-  const [form, setForm] = useState({ name: '', status: 'To Do', owner: defaultOwner, client_id: '', due_date: '' })
+  const [form, setForm] = useState({ name: '', status: TASK_STATUSES[0] || 'Now', owner: defaultOwner, client_id: '', due_date: '' })
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
   const handleSave = async () => {
     if (!form.name.trim()) return

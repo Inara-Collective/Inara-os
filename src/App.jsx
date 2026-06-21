@@ -17,6 +17,8 @@ import TeamBoard from './pages/TeamBoard.jsx'
 import AdminUsers from './pages/AdminUsers.jsx'
 import ClientPortal from './pages/ClientPortal.jsx'
 import ContentBoard from './pages/ContentBoard.jsx'
+import Messaging from './pages/Messaging.jsx'
+import ClientWorkspace from './pages/ClientWorkspace.jsx'
 import GlobalDictation from './components/GlobalDictation.jsx'
 
 export const AuthContext = createContext(null)
@@ -111,7 +113,9 @@ export default function App() {
             <Route path="pipeline" element={<Pipeline />} />
             <Route path="pipeline/:id" element={<ClientDetail />} />
             <Route path="clients" element={<ClientsList />} />
+            <Route path="clients/:id" element={<ClientWorkspace />} />
             <Route path="my-board" element={<MyBoard />} />
+            <Route path="messaging" element={<Messaging />} />
             <Route path="team-board" element={<RoleRoute allowedRoles={['admin','internal']}><TeamBoard /></RoleRoute>} />
             <Route path="system" element={<SystemFlow />} />
             <Route path="delivery" element={<Delivery />} />

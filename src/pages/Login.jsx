@@ -17,30 +17,66 @@ export default function Login() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#1A1816', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}>
-      <div style={{ width: '100%', maxWidth: 380 }}>
-        <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
-          <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '2rem', color: '#B8956A', letterSpacing: '.06em', marginBottom: '.4rem' }}>Inara Collective</div>
-          <div style={{ fontSize: '.6rem', letterSpacing: '.2em', textTransform: 'uppercase', color: 'rgba(255,255,255,.28)' }}>Ecosystem OS</div>
+    <div className="min-h-screen bg-cream flex items-center justify-center p-8">
+      <div className="w-full max-w-sm">
+
+        <div className="text-center mb-10">
+          <div className="font-display text-3xl text-ink tracking-wide mb-1.5">
+            Inara Collective
+          </div>
+          <div className="text-[0.58rem] tracking-[0.22em] uppercase text-muted-foreground">
+            Ecosystem OS
+          </div>
         </div>
-        <div style={{ background: '#2E2B26', border: '.5px solid rgba(255,255,255,.08)', borderRadius: '12px', padding: '2rem' }}>
-          <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1.3rem', color: '#F6F2EA', marginBottom: '1.5rem' }}>Sign in</div>
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+
+        <div className="bg-white rounded-lg shadow-card border border-border p-7">
+          <div className="font-display text-xl text-ink mb-5">Sign in</div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div className="form-group">
-              <label className="form-label" style={{ color: 'rgba(255,255,255,.38)' }}>Email</label>
-              <input className="form-input" type="email" value={email} onChange={e => setEmail(e.target.value)} required autoFocus style={{ background: '#1A1816', color: '#F6F2EA', borderColor: 'rgba(255,255,255,.1)' }} />
+              <label className="form-label">Email</label>
+              <input
+                className="form-input"
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                required
+                autoFocus
+                placeholder="you@inaracollective.co.nz"
+              />
             </div>
+
             <div className="form-group">
-              <label className="form-label" style={{ color: 'rgba(255,255,255,.38)' }}>Password</label>
-              <input className="form-input" type="password" value={password} onChange={e => setPassword(e.target.value)} required style={{ background: '#1A1816', color: '#F6F2EA', borderColor: 'rgba(255,255,255,.1)' }} />
+              <label className="form-label">Password</label>
+              <input
+                className="form-input"
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                required
+                placeholder="••••••••"
+              />
             </div>
-            {error && <div style={{ background: '#FBF0ED', border: '.5px solid #E8B4A8', borderRadius: '6px', padding: '.625rem .875rem', fontSize: '.78rem', color: '#8B2A1A' }}>{error}</div>}
-            <button type="submit" className="btn btn-gold" disabled={loading} style={{ width: '100%', justifyContent: 'center', marginTop: '.5rem' }}>
-              {loading ? 'Signing in...' : 'Sign in'}
+
+            {error && (
+              <div className="px-3.5 py-2.5 bg-red-50 border border-red-200 rounded-md text-xs text-red-700">
+                {error}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="btn btn-primary w-full justify-center py-2.5 mt-1"
+            >
+              {loading ? 'Signing in…' : 'Sign in'}
             </button>
           </form>
         </div>
-        <div style={{ textAlign: 'center', marginTop: '1.5rem', fontSize: '.66rem', color: 'rgba(255,255,255,.18)' }}>Internal tool — Inara Collective</div>
+
+        <p className="text-center text-[0.6rem] text-muted-foreground/50 mt-5">
+          Internal tool — Inara Collective
+        </p>
       </div>
     </div>
   )
