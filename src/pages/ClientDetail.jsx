@@ -125,10 +125,16 @@ export default function ClientDetail() {
   const [addingFlow, setAddingFlow] = useState(false)
   const [selectedTask, setSelectedTask] = useState(null)
   const [taskFilter, setTaskFilter] = useState('To Do Now')
+  const [expandedMonth, setExpandedMonth] = useState(null)
+  const [showAddSuggestion, setShowAddSuggestion] = useState(false)
+  const [newSuggestionForm, setNewSuggestionForm] = useState({ title:'', reason:'', impact:'', priority:'Medium', status:'Pending' })
 
   useEffect(() => {
     getClient(id)
-      .then(d => { setClient(d); setModules(d?.client_modules||[]); setTasks(d?.tasks||[]) })
+      .then(d => {
+        setClient(d); setModules(d?.client_modules||[]); setTasks(d?.tasks||[])
+        if (d && !SALES_STAGES.includes(d.stage) && d.stage !== 'Onboarding') setTab('home')
+      })
       .catch(() => {})
       .finally(() => setLoading(false))
     getUsers().then(setUsers).catch(() => {})
@@ -442,7 +448,7 @@ export default function ClientDetail() {
     ? ['overview','tasks','diagnosis','proposal','notes','comments','emails']
     : isOnboarding
     ? ['overview','tasks','onboarding','notes','emails']
-    : ['overview','tasks','growth','notes','emails']
+    : ['home','package','tasks','deliverables','website','suggestions','reporting','notes','emails','comments']
 
   const ONBOARDING_ITEMS = ['Contract signed','Invoice sent','Invoice paid','Welcome email sent','Client board created','Brand questionnaire sent','Access requested','Assets received','Kickoff call booked','Strategy call scheduled','Client folder created','Team briefed']
   const doneOnboarding = (client.onboarding_done||'').split(',').map(s=>s.trim()).filter(Boolean)
@@ -959,79 +965,384 @@ export default function ClientDetail() {
           )
         })()}
 
-        {/* ── GROWTH ── */}
-        {tab==='growth'&&(
+        {/* ── HOME (Active Client Hub) ── */}
+        {tab==='home'&&(
           <div>
-            {/* KPI stats */}
-            <div className="g3" style={{marginBottom:'1.5rem'}}>
-              <div className="kpi">
-                <div className="kpi-label">Client Since</div>
-                <div className="kpi-value" style={{fontSize:'1.3rem'}}>
-                  {client.client_since ? new Date(client.client_since).toLocaleDateString('en-NZ',{month:'long',year:'numeric'}) : '—'}
-                </div>
-                {!client.client_since && <div className="kpi-sub"><button onClick={()=>upd('client_since',new Date().toISOString().split('T')[0])} style={{fontSize:'.75rem',color:'var(--mist-blue)',background:'none',border:'none',cursor:'pointer',padding:0}}>Set today</button></div>}
-              </div>
-              <div className="kpi">
-                <div className="kpi-label">Total Projects</div>
-                <div className="kpi-value">{client.total_projects||0}</div>
-                <div className="kpi-sub">
-                  <button onClick={()=>upd('total_projects',(client.total_projects||0)+1)} style={{fontSize:'.75rem',color:'var(--mist-blue)',background:'none',border:'none',cursor:'pointer',padding:'0 .25rem 0 0'}}>+1</button>
-                </div>
-              </div>
-              <div className="kpi">
-                <div className="kpi-label">Total Investment</div>
-                <div className="kpi-value" style={{fontSize:'1.3rem'}}>{client.total_investment ? `$${Number(client.total_investment).toLocaleString()}` : '—'}</div>
-                {client.mrr&&<div className="kpi-sub">${client.mrr}/mth retainer</div>}
-              </div>
-            </div>
-
-            <div className="g2" style={{marginBottom:'1.5rem'}}>
-              {/* Current Focus */}
-              <div className="card">
-                <div className="card-head"><div className="card-title">Current Focus</div></div>
-                <div className="card-body">
-                  <textarea className="form-textarea" style={{minHeight:80}} placeholder="What are we focused on this month?" value={client.current_focus||''} onChange={e=>setClient(c=>({...c,current_focus:e.target.value}))} onBlur={e=>upd('current_focus',e.target.value)}/>
-                </div>
-              </div>
-              {/* Next Milestone */}
-              <div className="card">
-                <div className="card-head"><div className="card-title">Next Milestone</div></div>
-                <div className="card-body" style={{display:'flex',flexDirection:'column',gap:'.75rem'}}>
-                  <textarea className="form-textarea" style={{minHeight:56}} placeholder="The next big win or delivery…" value={client.next_milestone||''} onChange={e=>setClient(c=>({...c,next_milestone:e.target.value}))} onBlur={e=>upd('next_milestone',e.target.value)}/>
-                  <input type="date" className="form-input" value={client.next_milestone_date||''} onChange={e=>upd('next_milestone_date',e.target.value)}/>
-                </div>
-              </div>
-            </div>
-
-            {/* Growth Opportunities */}
-            <div className="card" style={{marginBottom:'1.25rem'}}>
-              <div className="card-head">
-                <div className="card-title">Growth Opportunities</div>
-                <span style={{fontSize:'.72rem',color:'var(--muted)'}}>Click to add as task →</span>
-              </div>
-              <div className="card-body" style={{padding:'.25rem 1.5rem'}}>
-                {GROWTH_OPPS.map(opp=>(
-                  <div key={opp.label}
-                    onClick={async()=>{const t=await createTask({client_id:id,name:opp.label,status:'Now'});setTasks(p=>[...p,t]);setTaskFilter('To Do Now');setSelectedTask(t.id);setTab('tasks')}}
-                    style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'.875rem 0',borderBottom:'.5px solid var(--border)',cursor:'pointer',borderRadius:'6px',transition:'background .1s'}}
-                    onMouseEnter={e=>e.currentTarget.style.background='var(--bg)'}
-                    onMouseLeave={e=>e.currentTarget.style.background='transparent'}
-                  >
-                    <span style={{fontSize:'.9rem',fontWeight:500,color:'var(--dark)'}}>{opp.label}</span>
-                    <div style={{display:'flex',alignItems:'center',gap:'.75rem',flexShrink:0}}>
-                      <span style={{fontSize:'.8rem',color:'var(--muted)'}}>{opp.value}</span>
-                      <span style={{fontSize:'.68rem',padding:'.2rem .55rem',borderRadius:'999px',background:opp.priority==='High'?'var(--gold-bg)':opp.priority==='Medium'?'var(--blue-bg)':'var(--border)',color:opp.priority==='High'?'var(--amber)':opp.priority==='Medium'?'var(--blue)':'var(--muted)',fontWeight:600,whiteSpace:'nowrap'}}>{opp.priority} Opportunity</span>
+            <div style={{ display:'flex', gap:'1.25rem', marginBottom:'1.5rem', alignItems:'flex-start' }}>
+              {/* Health score ring */}
+              {(()=>{
+                const done = tasks.filter(t=>t.status==='Done')
+                const total = tasks.length
+                let score = 0
+                if (total > 0) score += Math.round((done.length/total)*40)
+                if (client.current_focus) score += 20
+                if (client.next_milestone) score += 20
+                if (client.mrr) score += 20
+                score = Math.min(score, 100)
+                const scoreColor = score>=70?'#4A8A60':score>=40?'var(--amber)':'var(--red)'
+                const circumference = 2 * Math.PI * 40
+                return (
+                  <div style={{ background:'var(--warm)', border:'.5px solid var(--border)', borderRadius:'16px', padding:'1.5rem 1.25rem', textAlign:'center', flexShrink:0, width:170 }}>
+                    <div style={{ position:'relative', width:100, height:100, margin:'0 auto .875rem' }}>
+                      <svg viewBox="0 0 100 100" style={{ transform:'rotate(-90deg)', width:'100%', height:'100%' }}>
+                        <circle cx="50" cy="50" r="40" fill="none" stroke="var(--border)" strokeWidth="8"/>
+                        <circle cx="50" cy="50" r="40" fill="none" stroke={scoreColor} strokeWidth="8" strokeDasharray={`${(score/100)*circumference} ${circumference}`} strokeLinecap="round"/>
+                      </svg>
+                      <div style={{ position:'absolute', top:'50%', left:'50%', transform:'translate(-50%,-50%)', textAlign:'center' }}>
+                        <div style={{ fontSize:'1.6rem', fontWeight:700, color:'var(--dark)', lineHeight:1 }}>{score}</div>
+                        <div style={{ fontSize:'.5rem', color:'var(--muted)', letterSpacing:'.12em', textTransform:'uppercase' }}>health</div>
+                      </div>
                     </div>
+                    <div style={{ fontSize:'.75rem', color:scoreColor, fontWeight:600 }}>{score>=70?'Thriving':score>=40?'On track':'Needs attention'}</div>
+                  </div>
+                )
+              })()}
+              {/* Task stats + focus */}
+              <div style={{ flex:1, display:'flex', flexDirection:'column', gap:'.875rem' }}>
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'.625rem' }}>
+                  {[
+                    { label:'Today', count:tasks.filter(t=>t.status==='Today').length, color:'#2E6080', filter:'To Do Now' },
+                    { label:'Up Next', count:tasks.filter(t=>t.status==='Now'||t.status==='Soon').length, color:'var(--mist-blue)', filter:'Up Next' },
+                    { label:'Waiting', count:tasks.filter(t=>t.status==='Waiting').length, color:'var(--warm-greige)', filter:'Waiting' },
+                    { label:'Done', count:tasks.filter(t=>t.status==='Done').length, color:'var(--teal)', filter:'Done' },
+                  ].map(s=>(
+                    <div key={s.label} onClick={()=>{setTaskFilter(s.filter);setTab('tasks')}} style={{ background:'var(--warm)', border:'.5px solid var(--border)', borderRadius:'12px', padding:'.875rem .5rem', cursor:'pointer', textAlign:'center', transition:'all .12s' }}
+                      onMouseEnter={e=>{e.currentTarget.style.borderColor='var(--mist-blue)';e.currentTarget.style.background='var(--pale-cloud)'}}
+                      onMouseLeave={e=>{e.currentTarget.style.borderColor='var(--border)';e.currentTarget.style.background='var(--warm)'}}>
+                      <div style={{ fontSize:'1.5rem', fontWeight:700, color:s.color, lineHeight:1.1, marginBottom:'.2rem' }}>{s.count}</div>
+                      <div style={{ fontSize:'.62rem', color:'var(--muted)', letterSpacing:'.07em', textTransform:'uppercase' }}>{s.label}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="card" style={{ flex:1 }}>
+                  <div className="card-head"><div className="card-title">This Month's Focus</div></div>
+                  <div className="card-body">
+                    <textarea className="form-textarea" style={{ minHeight:56, fontSize:'.9rem' }} placeholder="What's the main focus this month?" value={client.current_focus||''} onChange={e=>setClient(c=>({...c,current_focus:e.target.value}))} onBlur={e=>upd('current_focus',e.target.value)}/>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Monthly rhythm */}
+            <div style={{ background:'var(--dark)', borderRadius:'12px', padding:'.875rem 1.25rem', marginBottom:'1.5rem', display:'flex', alignItems:'center', gap:'1rem', overflowX:'auto' }}>
+              <div style={{ fontSize:'.58rem', letterSpacing:'.18em', textTransform:'uppercase', color:'rgba(255,255,255,.35)', fontWeight:600, whiteSpace:'nowrap', flexShrink:0 }}>Monthly Rhythm</div>
+              {['Plan','Build','Review','Approve','Deliver','Report','Improve'].map((phase,i)=>(
+                <React.Fragment key={phase}>
+                  {i>0&&<div style={{ color:'rgba(255,255,255,.2)', fontSize:'.8rem', flexShrink:0 }}>→</div>}
+                  <div style={{ background:'rgba(255,255,255,.07)', borderRadius:'8px', padding:'.4rem .875rem', fontSize:'.75rem', color:'rgba(255,255,255,.7)', fontWeight:500, whiteSpace:'nowrap', flexShrink:0 }}>{phase}</div>
+                </React.Fragment>
+              ))}
+            </div>
+
+            {/* Quick links */}
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'.875rem' }}>
+              {[
+                { key:'package', label:'Package Overview', icon:'◎', desc:'Stage, inclusions, and investment details' },
+                { key:'deliverables', label:'Monthly Deliverables', icon:'▦', desc:'What gets delivered each month' },
+                { key:'tasks', label:'Tasks', icon:'✓', desc:'All active tasks and next actions' },
+                { key:'suggestions', label:'Suggestions', icon:'◈', desc:'Growth ideas and recommendations' },
+                { key:'website', label:'Website Board', icon:'→', desc:'Website tasks and update requests' },
+                { key:'reporting', label:'Reporting', icon:'◌', desc:'Monthly metrics and insights' },
+              ].map(l=>(
+                <div key={l.key} onClick={()=>setTab(l.key)} style={{ background:'var(--warm)', border:'.5px solid var(--border)', borderRadius:'14px', padding:'1.125rem', cursor:'pointer', transition:'all .12s' }}
+                  onMouseEnter={e=>{e.currentTarget.style.borderColor='var(--mist-blue)';e.currentTarget.style.background='var(--pale-cloud)'}}
+                  onMouseLeave={e=>{e.currentTarget.style.borderColor='var(--border)';e.currentTarget.style.background='var(--warm)'}}>
+                  <div style={{ fontSize:'1.2rem', marginBottom:'.5rem', color:'var(--soft-slate)' }}>{l.icon}</div>
+                  <div style={{ fontSize:'.9rem', fontWeight:700, color:'var(--dark)', marginBottom:'.2rem' }}>{l.label}</div>
+                  <div style={{ fontSize:'.78rem', color:'var(--muted)', lineHeight:1.5 }}>{l.desc}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── PACKAGE ── */}
+        {tab==='package'&&(
+          <div style={{ maxWidth:800 }}>
+            <div style={{ marginBottom:'1.75rem' }}>
+              <div style={{ fontSize:'.65rem', letterSpacing:'.18em', textTransform:'uppercase', color:'var(--muted)', fontWeight:600, marginBottom:'.875rem' }}>Current Package</div>
+              <div style={{ display:'flex', gap:'.875rem', flexWrap:'wrap' }}>
+                {['Stage 1 — Clarity','Stage 2 — Structure','Stage 3 — Growth Partner','Dial an Inara','Alumni'].map(s=>{
+                  const active = client.stage===s || client.recommended_package===s
+                  return (
+                    <div key={s} onClick={()=>upd('recommended_package',s)} style={{ padding:'.875rem 1.25rem', borderRadius:'14px', border:`1.5px solid ${active?'var(--mist-blue)':'var(--border)'}`, background:active?'var(--pale-cloud)':'var(--warm)', cursor:'pointer', transition:'all .12s' }}>
+                      <div style={{ fontSize:'.88rem', fontWeight:700, color:active?'#2E6080':'var(--dark)', marginBottom:'.2rem' }}>{s}</div>
+                      {active&&<div style={{ fontSize:'.58rem', color:'var(--mist-blue)', fontWeight:600, textTransform:'uppercase', letterSpacing:'.1em' }}>Active</div>}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1.25rem', marginBottom:'1.25rem' }}>
+              <div className="card">
+                <div className="card-head"><div className="card-title">Package Inclusions</div></div>
+                <div className="card-body">
+                  <textarea className="form-textarea" style={{ minHeight:180 }} placeholder={'List what\'s included in this package…\ne.g. 8 social posts/month\n1 email campaign\nMonthly strategy call'} value={client.package_inclusions||''} onChange={e=>setClient(c=>({...c,package_inclusions:e.target.value}))} onBlur={e=>upd('package_inclusions',e.target.value)}/>
+                </div>
+              </div>
+              <div>
+                <div className="card" style={{ marginBottom:'1rem' }}>
+                  <div className="card-head"><div className="card-title">Investment</div></div>
+                  <div className="card-body" style={{ padding:'.5rem 1rem' }}>
+                    <Field label="Monthly Retainer" value={client.mrr?.toString()} onSave={v=>upd('mrr',Number(v)||null)}/>
+                    <Field label="Total Investment" value={client.total_investment?.toString()} onSave={v=>upd('total_investment',parseFloat(v)||0)}/>
+                    <Field label="Client Since" value={client.client_since} type="date" onSave={v=>upd('client_since',v)}/>
+                    <Field label="Total Projects" value={client.total_projects?.toString()} onSave={v=>upd('total_projects',parseInt(v)||0)}/>
+                  </div>
+                </div>
+                <div className="card">
+                  <div className="card-head"><div className="card-title">Next Milestone</div></div>
+                  <div className="card-body" style={{ display:'flex', flexDirection:'column', gap:'.75rem' }}>
+                    <textarea className="form-textarea" style={{ minHeight:56 }} placeholder="The next big delivery or win…" value={client.next_milestone||''} onChange={e=>setClient(c=>({...c,next_milestone:e.target.value}))} onBlur={e=>upd('next_milestone',e.target.value)}/>
+                    <input type="date" className="form-input" value={client.next_milestone_date||''} onChange={e=>upd('next_milestone_date',e.target.value)}/>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── DELIVERABLES ── */}
+        {tab==='deliverables'&&(()=>{
+          const delivs = (() => { try { return JSON.parse(client.monthly_deliverables||'[]') } catch(e) { return [] } })()
+          const saveDelivs = arr => upd('monthly_deliverables', JSON.stringify(arr))
+          return (
+            <div style={{ maxWidth:760 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'1.25rem' }}>
+                <div>
+                  <div style={{ fontFamily:'Cormorant Garamond,Georgia,serif', fontSize:'1.6rem', fontWeight:400 }}>Monthly Deliverables</div>
+                  <div style={{ fontSize:'.85rem', color:'var(--muted)' }}>What gets delivered each month of the engagement.</div>
+                </div>
+                <button className="btn btn-primary" onClick={()=>saveDelivs([...delivs,{month:`Month ${delivs.length+1}`,focus:'',deliverables:[]}])}>+ Add Month</button>
+              </div>
+              <div style={{ display:'flex', flexDirection:'column', gap:'.625rem' }}>
+                {delivs.length===0&&(
+                  <div style={{ textAlign:'center', padding:'3rem', color:'var(--muted)', fontSize:'.9rem', background:'var(--warm)', borderRadius:'14px', border:'1.5px dashed var(--border)' }}>
+                    No months added yet. Click "+ Add Month" to map out what gets delivered.
+                  </div>
+                )}
+                {delivs.map((month,mi)=>{
+                  const isOpen = expandedMonth === mi
+                  return (
+                    <div key={mi} style={{ background:'var(--warm)', border:`.5px solid ${isOpen?'var(--mist-blue)':'var(--border)'}`, borderRadius:'14px', overflow:'hidden', transition:'border-color .12s' }}>
+                      <div onClick={()=>setExpandedMonth(isOpen?null:mi)} style={{ display:'flex', alignItems:'center', gap:'1rem', padding:'1rem 1.25rem', cursor:'pointer' }}>
+                        <div style={{ width:36, height:36, borderRadius:'10px', background:isOpen?'var(--pale-cloud)':'var(--bg)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'.82rem', fontWeight:700, color:isOpen?'#2E6080':'var(--muted)', flexShrink:0 }}>{mi+1}</div>
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <div style={{ fontWeight:700, color:'var(--dark)', fontSize:'.95rem' }}>{month.month}</div>
+                          {month.focus&&<div style={{ fontSize:'.78rem', color:'var(--muted)', marginTop:'.1rem', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{month.focus}</div>}
+                        </div>
+                        <div style={{ display:'flex', alignItems:'center', gap:'.75rem', flexShrink:0 }}>
+                          <span style={{ fontSize:'.72rem', background:'var(--pale-cloud)', color:'#2E6080', borderRadius:'999px', padding:'.18rem .55rem', fontWeight:600 }}>{(month.deliverables||[]).length}</span>
+                          <span style={{ color:'var(--muted)', fontSize:'.85rem', lineHeight:1 }}>{isOpen?'▲':'▼'}</span>
+                        </div>
+                      </div>
+                      {isOpen&&(
+                        <div style={{ borderTop:'.5px solid var(--border)', padding:'1rem 1.25rem', background:'#FAFCFE' }}>
+                          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1rem', marginBottom:'.875rem' }}>
+                            <div>
+                              <div style={{ fontSize:'.6rem', letterSpacing:'.14em', textTransform:'uppercase', color:'var(--muted)', fontWeight:600, marginBottom:'.35rem' }}>Month Name</div>
+                              <input className="form-input" value={month.month} onChange={e=>{const arr=[...delivs];arr[mi]={...arr[mi],month:e.target.value};saveDelivs(arr)}}/>
+                            </div>
+                            <div>
+                              <div style={{ fontSize:'.6rem', letterSpacing:'.14em', textTransform:'uppercase', color:'var(--muted)', fontWeight:600, marginBottom:'.35rem' }}>Focus Theme</div>
+                              <input className="form-input" value={month.focus||''} placeholder="This month's theme…" onChange={e=>{const arr=[...delivs];arr[mi]={...arr[mi],focus:e.target.value};saveDelivs(arr)}}/>
+                            </div>
+                          </div>
+                          <div>
+                            <div style={{ fontSize:'.6rem', letterSpacing:'.14em', textTransform:'uppercase', color:'var(--muted)', fontWeight:600, marginBottom:'.5rem' }}>Deliverables</div>
+                            {(month.deliverables||[]).map((d,di)=>(
+                              <div key={di} style={{ display:'flex', alignItems:'center', gap:'.5rem', marginBottom:'.4rem' }}>
+                                <span style={{ color:'var(--mist-blue)', fontSize:'.8rem', flexShrink:0 }}>▸</span>
+                                <input className="form-input" style={{ flex:1 }} value={d} onChange={e=>{const arr=[...delivs];arr[mi]={...arr[mi],deliverables:arr[mi].deliverables.map((x,xi)=>xi===di?e.target.value:x)};saveDelivs(arr)}}/>
+                                <button onClick={()=>{const arr=[...delivs];arr[mi]={...arr[mi],deliverables:arr[mi].deliverables.filter((_,xi)=>xi!==di)};saveDelivs(arr)}} style={{ background:'none',border:'none',cursor:'pointer',color:'var(--muted)',fontSize:'.85rem',padding:'.2rem .3rem',lineHeight:1,flexShrink:0 }}>✕</button>
+                              </div>
+                            ))}
+                            <button onClick={()=>{const arr=[...delivs];arr[mi]={...arr[mi],deliverables:[...(arr[mi].deliverables||[]),'']};saveDelivs(arr)}} style={{ background:'none',border:'1.5px dashed var(--border)',borderRadius:'8px',padding:'.4rem .875rem',fontSize:'.82rem',color:'var(--muted)',cursor:'pointer',width:'100%',marginTop:'.35rem',fontFamily:'inherit' }}>+ Add deliverable</button>
+                          </div>
+                          <div style={{ marginTop:'1rem', paddingTop:'.75rem', borderTop:'.5px solid var(--border)', display:'flex', justifyContent:'flex-end' }}>
+                            <button onClick={()=>{const arr=delivs.filter((_,xi)=>xi!==mi);saveDelivs(arr);setExpandedMonth(null)}} style={{ background:'none',border:'none',cursor:'pointer',color:'var(--red)',fontSize:'.78rem',padding:0 }}>Remove this month</button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })()}
+
+        {/* ── WEBSITE BOARD ── */}
+        {tab==='website'&&(()=>{
+          const webTasks = tasks.filter(t=>(t.name||'').toLowerCase().includes('website')||(t.name||'').toLowerCase().includes('[web]'))
+          const cols = [
+            { label:'Not Started', statuses:['Now','Soon'], color:'var(--warm-greige)' },
+            { label:'In Progress', statuses:['Today'], color:'var(--mist-blue)' },
+            { label:'In Review', statuses:['Waiting'], color:'var(--amber)' },
+            { label:'Done', statuses:['Done'], color:'var(--teal)' },
+          ]
+          return (
+            <div>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'1.25rem' }}>
+                <div>
+                  <div style={{ fontFamily:'Cormorant Garamond,Georgia,serif', fontSize:'1.6rem', fontWeight:400 }}>Website Board</div>
+                  <div style={{ fontSize:'.85rem', color:'var(--muted)' }}>Track website tasks, updates, and requests for {client.name?.split(' ')[0]}.</div>
+                </div>
+                <button className="btn btn-primary" onClick={async()=>{const t=await createTask({client_id:id,name:'[Website] ',status:'Now'});setTasks(p=>[...p,t]);setSelectedTask(t.id);setTab('tasks')}}>+ Add Website Task</button>
+              </div>
+              {webTasks.length===0&&(
+                <div style={{ textAlign:'center', padding:'3rem', color:'var(--muted)', fontSize:'.9rem', background:'var(--warm)', borderRadius:'14px', border:'1.5px dashed var(--border)', marginBottom:'1.25rem' }}>
+                  No website tasks yet. Tasks with "website" or "[web]" in the name appear here automatically.
+                </div>
+              )}
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'1rem' }}>
+                {cols.map(col=>(
+                  <div key={col.label}>
+                    <div style={{ display:'flex', alignItems:'center', gap:'.5rem', marginBottom:'.75rem' }}>
+                      <div style={{ width:8, height:8, borderRadius:'50%', background:col.color, flexShrink:0 }}/>
+                      <span style={{ fontSize:'.62rem', letterSpacing:'.12em', textTransform:'uppercase', color:'var(--muted)', fontWeight:600 }}>{col.label}</span>
+                      <span style={{ fontSize:'.65rem', color:'var(--muted)', marginLeft:'auto' }}>{webTasks.filter(t=>col.statuses.includes(t.status)).length}</span>
+                    </div>
+                    {webTasks.filter(t=>col.statuses.includes(t.status)).map(task=>(
+                      <div key={task.id} onClick={()=>{setSelectedTask(task.id);setTab('tasks')}} style={{ background:'var(--warm)', border:'.5px solid var(--border)', borderRadius:'12px', padding:'.875rem', marginBottom:'.5rem', cursor:'pointer', transition:'all .12s' }}
+                        onMouseEnter={e=>{e.currentTarget.style.borderColor='var(--mist-blue)'}}
+                        onMouseLeave={e=>{e.currentTarget.style.borderColor='var(--border)'}}>
+                        <div style={{ fontSize:'.88rem', fontWeight:600, color:'var(--dark)', lineHeight:1.4, marginBottom:'.35rem' }}>{(task.name||'').replace(/\[web(site)?\]/gi,'').trim()}</div>
+                        <div style={{ display:'flex', alignItems:'center', gap:'.4rem' }}>
+                          <span style={{ width:7, height:7, borderRadius:'50%', background:col.color, display:'inline-block', flexShrink:0 }}/>
+                          <span style={{ fontSize:'.65rem', color:'var(--muted)' }}>{task.status}</span>
+                          {task.due_date&&<span style={{ fontSize:'.65rem', color:'var(--muted)', marginLeft:'auto' }}>Due {new Date(task.due_date+'T00:00').toLocaleDateString('en-NZ',{day:'numeric',month:'short'})}</span>}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 ))}
               </div>
             </div>
+          )
+        })()}
 
-            {/* Growth Notes */}
+        {/* ── SUGGESTIONS ── */}
+        {tab==='suggestions'&&(()=>{
+          const suggs = (() => { try { return JSON.parse(client.suggestions||'[]') } catch(e) { return [] } })()
+          const saveSuggs = arr => upd('suggestions', JSON.stringify(arr))
+          return (
+            <div>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'1.25rem' }}>
+                <div>
+                  <div style={{ fontFamily:'Cormorant Garamond,Georgia,serif', fontSize:'1.6rem', fontWeight:400 }}>Suggestions to Improve</div>
+                  <div style={{ fontSize:'.85rem', color:'var(--muted)' }}>Growth ideas and recommendations for {client.name?.split(' ')[0]}.</div>
+                </div>
+                <button className="btn btn-primary" onClick={()=>setShowAddSuggestion(v=>!v)}>+ Add Suggestion</button>
+              </div>
+
+              {showAddSuggestion&&(
+                <div className="card" style={{ marginBottom:'1.25rem', border:'1.5px solid var(--mist-blue)' }}>
+                  <div className="card-head"><div className="card-title">New Suggestion</div></div>
+                  <div className="card-body" style={{ display:'flex', flexDirection:'column', gap:'.75rem' }}>
+                    <input className="form-input" placeholder="What to improve or add…" value={newSuggestionForm.title} onChange={e=>setNewSuggestionForm(f=>({...f,title:e.target.value}))}/>
+                    <textarea className="form-textarea" style={{ minHeight:60 }} placeholder="Why does this matter for this client?" value={newSuggestionForm.reason} onChange={e=>setNewSuggestionForm(f=>({...f,reason:e.target.value}))}/>
+                    <input className="form-input" placeholder="Expected impact or outcome…" value={newSuggestionForm.impact} onChange={e=>setNewSuggestionForm(f=>({...f,impact:e.target.value}))}/>
+                    <div>
+                      <div style={{ fontSize:'.6rem', letterSpacing:'.12em', textTransform:'uppercase', color:'var(--muted)', fontWeight:600, marginBottom:'.4rem' }}>Priority</div>
+                      <div style={{ display:'flex', gap:'.4rem' }}>
+                        {['High','Medium','Low'].map(p=>(
+                          <button key={p} onClick={()=>setNewSuggestionForm(f=>({...f,priority:p}))} style={{ padding:'.3rem .875rem', borderRadius:'999px', fontSize:'.82rem', cursor:'pointer', fontFamily:'inherit', border:`1.5px solid ${newSuggestionForm.priority===p?'var(--mist-blue)':'var(--border)'}`, background:newSuggestionForm.priority===p?'var(--pale-cloud)':'transparent', color:newSuggestionForm.priority===p?'#2E6080':'var(--muted)', fontWeight:newSuggestionForm.priority===p?700:400 }}>{p}</button>
+                        ))}
+                      </div>
+                    </div>
+                    <div style={{ display:'flex', justifyContent:'flex-end', gap:'.5rem' }}>
+                      <button className="btn btn-ghost btn-sm" onClick={()=>{setShowAddSuggestion(false);setNewSuggestionForm({title:'',reason:'',impact:'',priority:'Medium',status:'Pending'})}}>Cancel</button>
+                      <button className="btn btn-primary btn-sm" onClick={()=>{if(!newSuggestionForm.title.trim())return;saveSuggs([...suggs,{...newSuggestionForm,id:Date.now()}]);setShowAddSuggestion(false);setNewSuggestionForm({title:'',reason:'',impact:'',priority:'Medium',status:'Pending'})}}>Add</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display:'flex', flexDirection:'column', gap:'.875rem' }}>
+                {suggs.length===0&&!showAddSuggestion&&(
+                  <div style={{ textAlign:'center', padding:'3rem', color:'var(--muted)', fontSize:'.9rem', background:'var(--warm)', borderRadius:'14px', border:'1.5px dashed var(--border)' }}>
+                    No suggestions yet. Click "+ Add Suggestion" to capture growth ideas.
+                  </div>
+                )}
+                {suggs.map((s,si)=>{
+                  const priCol = s.priority==='High'?'var(--amber)':s.priority==='Medium'?'var(--mist-blue)':'var(--muted)'
+                  return (
+                    <div key={s.id||si} className="card">
+                      <div className="card-body">
+                        <div style={{ display:'flex', alignItems:'flex-start', gap:'1rem' }}>
+                          <div style={{ flex:1, minWidth:0 }}>
+                            <div style={{ fontWeight:700, fontSize:'.95rem', color:'var(--dark)', marginBottom:'.4rem' }}>{s.title}</div>
+                            {s.reason&&<div style={{ fontSize:'.82rem', color:'var(--muted)', lineHeight:1.6, marginBottom:'.5rem' }}>{s.reason}</div>}
+                            {s.impact&&<div style={{ display:'inline-flex', alignItems:'center', gap:'.35rem', fontSize:'.78rem', color:'var(--dark)', background:'var(--bg)', borderRadius:'6px', padding:'.3rem .625rem' }}>
+                              <span style={{ color:'var(--mist-blue)', fontWeight:700 }}>↑</span>{s.impact}
+                            </div>}
+                          </div>
+                          <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:'.5rem', flexShrink:0 }}>
+                            <span style={{ fontSize:'.65rem', padding:'.2rem .55rem', borderRadius:'999px', background:`${priCol}18`, color:priCol, fontWeight:600, border:`.5px solid ${priCol}44` }}>{s.priority}</span>
+                            <div style={{ display:'flex', gap:'.3rem' }}>
+                              {['Pending','In Progress','Done'].map(st=>{
+                                const stActive = s.status===st
+                                const stBg = st==='Done'?'var(--teal)':st==='In Progress'?'var(--mist-blue)':'var(--warm-greige)'
+                                return (
+                                  <button key={st} onClick={()=>{const arr=[...suggs];arr[si]={...arr[si],status:st};saveSuggs(arr)}} style={{ padding:'.2rem .5rem', borderRadius:'999px', fontSize:'.6rem', cursor:'pointer', fontFamily:'inherit', background:stActive?stBg:'transparent', color:stActive?(st==='Pending'?'var(--dark)':'#fff'):'var(--muted)', border:`.5px solid ${stActive?stBg:'var(--border)'}`, fontWeight:stActive?600:400 }}>{st}</button>
+                                )
+                              })}
+                            </div>
+                            <button onClick={()=>saveSuggs(suggs.filter((_,xi)=>xi!==si))} style={{ background:'none',border:'none',cursor:'pointer',color:'var(--muted)',fontSize:'.68rem',padding:0,textDecoration:'underline' }}>Remove</button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })()}
+
+        {/* ── REPORTING ── */}
+        {tab==='reporting'&&(
+          <div style={{ maxWidth:800 }}>
+            <div style={{ fontFamily:'Cormorant Garamond,Georgia,serif', fontSize:'1.6rem', fontWeight:400, marginBottom:'1.5rem' }}>Monthly Reporting & Optimisation</div>
+
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'.875rem', marginBottom:'1.5rem' }}>
+              {[
+                { label:'Growth %', field:'report_growth_pct', suffix:'%' },
+                { label:'New Leads', field:'report_new_leads', suffix:'' },
+                { label:'Email Opens', field:'report_email_opens', suffix:'%' },
+                { label:'Engagement', field:'report_engagement', suffix:'%' },
+              ].map(m=>(
+                <div key={m.field} style={{ background:'var(--warm)', border:'.5px solid var(--border)', borderRadius:'14px', padding:'1.125rem' }}>
+                  <div style={{ fontSize:'.58rem', letterSpacing:'.14em', textTransform:'uppercase', color:'var(--muted)', fontWeight:600, marginBottom:'.5rem' }}>{m.label}</div>
+                  <div style={{ fontFamily:'Cormorant Garamond,Georgia,serif', fontSize:'2rem', color:'var(--dark)', lineHeight:1, marginBottom:'.5rem' }}>
+                    {client[m.field]||'—'}{client[m.field]?m.suffix:''}
+                  </div>
+                  <input type="number" className="form-input" style={{ fontSize:'.78rem', padding:'.3rem .5rem' }} placeholder="Enter…" value={client[m.field]||''} onChange={e=>setClient(c=>({...c,[m.field]:e.target.value}))} onBlur={e=>upd(m.field,e.target.value||null)}/>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1.25rem', marginBottom:'1.25rem' }}>
+              <div className="card">
+                <div className="card-head"><div className="card-title">Top Performance</div></div>
+                <div className="card-body">
+                  <textarea className="form-textarea" style={{ minHeight:120 }} placeholder="What worked best this month? Top posts, emails, campaigns…" value={client.report_top_performance||''} onChange={e=>setClient(c=>({...c,report_top_performance:e.target.value}))} onBlur={e=>upd('report_top_performance',e.target.value)}/>
+                </div>
+              </div>
+              <div className="card">
+                <div className="card-head"><div className="card-title">Recommendations</div></div>
+                <div className="card-body">
+                  <textarea className="form-textarea" style={{ minHeight:120 }} placeholder="What do we recommend for next month?" value={client.report_recommendations||''} onChange={e=>setClient(c=>({...c,report_recommendations:e.target.value}))} onBlur={e=>upd('report_recommendations',e.target.value)}/>
+                </div>
+              </div>
+            </div>
+
             <div className="card">
-              <div className="card-head"><div className="card-title">Growth Notes</div></div>
+              <div className="card-head"><div className="card-title">Next Steps</div></div>
               <div className="card-body">
-                <textarea className="form-textarea" style={{minHeight:100}} placeholder="Long-term relationship ideas, referral potential, upsell timing…" value={client.growth_notes||''} onChange={e=>setClient(c=>({...c,growth_notes:e.target.value}))} onBlur={e=>upd('growth_notes',e.target.value)}/>
+                <textarea className="form-textarea" style={{ minHeight:80 }} placeholder="Key actions for next month…" value={client.report_next_steps||''} onChange={e=>setClient(c=>({...c,report_next_steps:e.target.value}))} onBlur={e=>upd('report_next_steps',e.target.value)}/>
               </div>
             </div>
           </div>
