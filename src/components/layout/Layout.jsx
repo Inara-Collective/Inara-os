@@ -14,7 +14,7 @@ const NAV_SECTIONS = [
   {
     label: 'Sales',
     items: [
-      { to: '/pipeline', label: 'Pipeline', icon: '◈' },
+      { to: '/pipeline', label: 'Leads', icon: '◈' },
       { to: '/clients', label: 'Clients', icon: '◎' },
     ],
   },

@@ -433,11 +433,34 @@ export default function ClientDetail() {
   }
 
 
-  const TABS = ['overview','tasks','diagnosis','notes','comments','emails']
   const assignOptions = users.map(u => u.name).filter(Boolean)
   const mentionUsers = mentionSearch !== null ? users.filter(u => u.name?.toLowerCase().startsWith(mentionSearch.toLowerCase())) : []
   const isLead = SALES_STAGES.includes(client.stage)
+  const isOnboarding = client.stage === 'Onboarding'
   const CLIENT_STAGES = PIPELINE_STAGES.filter(s => !SALES_STAGES.includes(s))
+  const TABS = isLead
+    ? ['overview','tasks','diagnosis','proposal','notes','comments','emails']
+    : isOnboarding
+    ? ['overview','tasks','onboarding','notes','emails']
+    : ['overview','tasks','growth','notes','emails']
+
+  const ONBOARDING_ITEMS = ['Contract signed','Invoice sent','Invoice paid','Welcome email sent','Client board created','Brand questionnaire sent','Access requested','Assets received','Kickoff call booked','Strategy call scheduled','Client folder created','Team briefed']
+  const doneOnboarding = (client.onboarding_done||'').split(',').map(s=>s.trim()).filter(Boolean)
+  const toggleOnboarding = (item) => {
+    const newDone = doneOnboarding.includes(item) ? doneOnboarding.filter(x=>x!==item) : [...doneOnboarding, item]
+    upd('onboarding_done', newDone.join(','))
+  }
+
+  const GROWTH_OPPS = [
+    { label:'Add paid ads management', value:'Est. $1,500/mth', priority:'High' },
+    { label:'Monthly content retainer', value:'Est. $2,000/mth', priority:'High' },
+    { label:'Email marketing setup', value:'Est. $800/mth', priority:'Medium' },
+    { label:'Campaign strategy & execution', value:'Est. $3,000', priority:'Medium' },
+    { label:'Content shoot', value:'Est. $1,200', priority:'Low' },
+    { label:'Brand refresh', value:'Est. $4,000', priority:'Low' },
+    { label:'Website update', value:'Est. $2,500', priority:'Low' },
+    { label:'Training & on-camera coaching', value:'Est. $1,500', priority:'Medium' },
+  ]
 
   const connColors = { 'Cold':'var(--blue)', 'Warm':'var(--gold)', 'Hot':'var(--red)', 'Existing relationship':'var(--teal)', 'Referral':'var(--purple)', 'Past client':'var(--teal)', 'Event connection':'var(--amber)' }
 
@@ -836,6 +859,180 @@ export default function ClientDetail() {
                   {e.body&&<div style={{padding:'.75rem 1rem',fontSize:'.78rem',color:'var(--dark)',lineHeight:1.7,whiteSpace:'pre-wrap',maxHeight:200,overflowY:'auto'}}>{e.body}</div>}
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── PROPOSAL ── */}
+        {tab==='proposal'&&(
+          <div style={{maxWidth:800}}>
+            {/* Status chips */}
+            <div style={{marginBottom:'1.75rem'}}>
+              <div style={{fontSize:'.65rem',letterSpacing:'.18em',textTransform:'uppercase',color:'var(--muted)',fontWeight:600,marginBottom:'.875rem'}}>Proposal Status</div>
+              <div style={{display:'flex',gap:'.5rem',flexWrap:'wrap'}}>
+                {['Draft','Sent','Viewed','Follow Up','Accepted','Declined','Revised'].map(s=>{
+                  const active=(client.proposal_status||'Draft')===s
+                  const col=s==='Accepted'?'var(--teal)':s==='Declined'?'var(--red)':s==='Revised'?'var(--amber)':s==='Sent'||s==='Viewed'?'var(--blue)':s==='Follow Up'?'var(--purple)':'var(--muted)'
+                  return (
+                    <button key={s} onClick={()=>upd('proposal_status',s)} style={{padding:'.5rem 1.25rem',borderRadius:'999px',fontSize:'.9rem',cursor:'pointer',fontFamily:'inherit',fontWeight:active?700:400,border:active?`2px solid ${col}`:'1.5px solid var(--border)',background:active?`${col}15`:'transparent',color:active?col:'var(--muted)',transition:'all .12s'}}>
+                      {s}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Package + Investment + Dates */}
+            <div className="card" style={{marginBottom:'1.25rem'}}>
+              <div className="card-head"><div className="card-title">Proposal Details</div></div>
+              <div className="card-body" style={{padding:'.5rem 1rem'}}>
+                <Field label="Package" value={client.recommended_package} type="select" options={PACKAGES} onSave={v=>upd('recommended_package',v)}/>
+                <Field label="Investment (MRR)" value={client.mrr?.toString()} onSave={v=>upd('mrr',Number(v)||null)}/>
+                <Field label="Date sent" value={client.proposal_sent_date} type="date" onSave={v=>upd('proposal_sent_date',v)}/>
+                <Field label="Follow-up date" value={client.proposal_follow_up_date} type="date" onSave={v=>upd('proposal_follow_up_date',v)}/>
+                <Field label="Proposal notes" value={client.proposal_notes} type="textarea" onSave={v=>upd('proposal_notes',v)}/>
+              </div>
+            </div>
+
+            {/* Suggested next actions */}
+            <div className="card">
+              <div className="card-head"><div className="card-title">What to do next</div><span style={{fontSize:'.72rem',color:'var(--muted)'}}>Click to add as task →</span></div>
+              <div className="card-body" style={{padding:'.25rem 1rem'}}>
+                {['Send proposal','Follow up in 2 days','Call to walk through proposal','Send a case study or testimonial','Send payment details','Adjust and revise proposal','Convert to onboarding'].map(action=>(
+                  <div key={action}
+                    onClick={async()=>{const t=await createTask({client_id:id,name:action,status:'Now'});setTasks(p=>[...p,t]);setTaskFilter('To Do Now');setSelectedTask(t.id);setTab('tasks')}}
+                    style={{display:'flex',alignItems:'center',gap:'.875rem',padding:'.75rem .25rem',borderBottom:'.5px solid var(--border)',cursor:'pointer',transition:'background .1s',borderRadius:'6px'}}
+                    onMouseEnter={e=>e.currentTarget.style.background='var(--bg)'}
+                    onMouseLeave={e=>e.currentTarget.style.background='transparent'}
+                  >
+                    <div style={{width:26,height:26,borderRadius:'7px',background:'var(--bg)',border:'.5px solid var(--border)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'.8rem',flexShrink:0,color:'var(--muted)'}}>+</div>
+                    <span style={{fontSize:'.9rem',color:'var(--dark)'}}>{action}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── ONBOARDING ── */}
+        {tab==='onboarding'&&(()=>{
+          const pct = ONBOARDING_ITEMS.length > 0 ? Math.round((doneOnboarding.length/ONBOARDING_ITEMS.length)*100) : 0
+          return (
+            <div style={{maxWidth:700}}>
+              {/* Progress hero */}
+              <div style={{background:'var(--dark)',borderRadius:'16px',padding:'1.75rem',marginBottom:'1.5rem',color:'#fff'}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1rem'}}>
+                  <div>
+                    <div style={{fontFamily:'Cormorant Garamond,Georgia,serif',fontSize:'1.5rem',fontWeight:300,marginBottom:'.2rem'}}>Onboarding Progress</div>
+                    <div style={{fontSize:'.9rem',color:'rgba(255,255,255,.5)'}}>{doneOnboarding.length} of {ONBOARDING_ITEMS.length} steps completed</div>
+                  </div>
+                  <div style={{fontFamily:'Cormorant Garamond,Georgia,serif',fontSize:'3rem',fontWeight:300,color:pct===100?'#4A8A60':'#9FBBD0',lineHeight:1}}>{pct}%</div>
+                </div>
+                <div style={{height:8,background:'rgba(255,255,255,.1)',borderRadius:'4px',overflow:'hidden'}}>
+                  <div style={{height:'100%',borderRadius:'4px',background:pct===100?'#4A8A60':'var(--mist-blue)',width:`${pct}%`,transition:'width .4s ease'}}/>
+                </div>
+                {pct===100&&<div style={{marginTop:'.875rem',fontSize:'.88rem',color:'#4A8A60',fontWeight:600}}>All done — {client.name?.split(' ')[0]} is ready to go! 🎉</div>}
+              </div>
+
+              {/* Checklist */}
+              <div className="card">
+                <div className="card-head"><div className="card-title">Onboarding checklist</div></div>
+                <div style={{padding:'0 1rem'}}>
+                  {ONBOARDING_ITEMS.map(item=>{
+                    const done=doneOnboarding.includes(item)
+                    return (
+                      <div key={item} onClick={()=>toggleOnboarding(item)}
+                        style={{display:'flex',alignItems:'center',gap:'.875rem',padding:'.875rem .25rem',borderBottom:'.5px solid var(--border)',cursor:'pointer',borderRadius:'6px',transition:'background .1s'}}
+                        onMouseEnter={e=>e.currentTarget.style.background='var(--bg)'}
+                        onMouseLeave={e=>e.currentTarget.style.background='transparent'}
+                      >
+                        <div style={{width:26,height:26,borderRadius:'7px',border:`2px solid ${done?'var(--teal)':'var(--border)'}`,background:done?'var(--teal)':'transparent',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,transition:'all .14s'}}>
+                          {done&&<span style={{color:'#fff',fontSize:'.8rem',fontWeight:700,lineHeight:1}}>✓</span>}
+                        </div>
+                        <span style={{fontSize:'.95rem',color:done?'var(--muted)':'var(--dark)',textDecoration:done?'line-through':'none',transition:'all .14s'}}>{item}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+          )
+        })()}
+
+        {/* ── GROWTH ── */}
+        {tab==='growth'&&(
+          <div>
+            {/* KPI stats */}
+            <div className="g3" style={{marginBottom:'1.5rem'}}>
+              <div className="kpi">
+                <div className="kpi-label">Client Since</div>
+                <div className="kpi-value" style={{fontSize:'1.3rem'}}>
+                  {client.client_since ? new Date(client.client_since).toLocaleDateString('en-NZ',{month:'long',year:'numeric'}) : '—'}
+                </div>
+                {!client.client_since && <div className="kpi-sub"><button onClick={()=>upd('client_since',new Date().toISOString().split('T')[0])} style={{fontSize:'.75rem',color:'var(--mist-blue)',background:'none',border:'none',cursor:'pointer',padding:0}}>Set today</button></div>}
+              </div>
+              <div className="kpi">
+                <div className="kpi-label">Total Projects</div>
+                <div className="kpi-value">{client.total_projects||0}</div>
+                <div className="kpi-sub">
+                  <button onClick={()=>upd('total_projects',(client.total_projects||0)+1)} style={{fontSize:'.75rem',color:'var(--mist-blue)',background:'none',border:'none',cursor:'pointer',padding:'0 .25rem 0 0'}}>+1</button>
+                </div>
+              </div>
+              <div className="kpi">
+                <div className="kpi-label">Total Investment</div>
+                <div className="kpi-value" style={{fontSize:'1.3rem'}}>{client.total_investment ? `$${Number(client.total_investment).toLocaleString()}` : '—'}</div>
+                {client.mrr&&<div className="kpi-sub">${client.mrr}/mth retainer</div>}
+              </div>
+            </div>
+
+            <div className="g2" style={{marginBottom:'1.5rem'}}>
+              {/* Current Focus */}
+              <div className="card">
+                <div className="card-head"><div className="card-title">Current Focus</div></div>
+                <div className="card-body">
+                  <textarea className="form-textarea" style={{minHeight:80}} placeholder="What are we focused on this month?" value={client.current_focus||''} onChange={e=>setClient(c=>({...c,current_focus:e.target.value}))} onBlur={e=>upd('current_focus',e.target.value)}/>
+                </div>
+              </div>
+              {/* Next Milestone */}
+              <div className="card">
+                <div className="card-head"><div className="card-title">Next Milestone</div></div>
+                <div className="card-body" style={{display:'flex',flexDirection:'column',gap:'.75rem'}}>
+                  <textarea className="form-textarea" style={{minHeight:56}} placeholder="The next big win or delivery…" value={client.next_milestone||''} onChange={e=>setClient(c=>({...c,next_milestone:e.target.value}))} onBlur={e=>upd('next_milestone',e.target.value)}/>
+                  <input type="date" className="form-input" value={client.next_milestone_date||''} onChange={e=>upd('next_milestone_date',e.target.value)}/>
+                </div>
+              </div>
+            </div>
+
+            {/* Growth Opportunities */}
+            <div className="card" style={{marginBottom:'1.25rem'}}>
+              <div className="card-head">
+                <div className="card-title">Growth Opportunities</div>
+                <span style={{fontSize:'.72rem',color:'var(--muted)'}}>Click to add as task →</span>
+              </div>
+              <div className="card-body" style={{padding:'.25rem 1.5rem'}}>
+                {GROWTH_OPPS.map(opp=>(
+                  <div key={opp.label}
+                    onClick={async()=>{const t=await createTask({client_id:id,name:opp.label,status:'Now'});setTasks(p=>[...p,t]);setTaskFilter('To Do Now');setSelectedTask(t.id);setTab('tasks')}}
+                    style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'.875rem 0',borderBottom:'.5px solid var(--border)',cursor:'pointer',borderRadius:'6px',transition:'background .1s'}}
+                    onMouseEnter={e=>e.currentTarget.style.background='var(--bg)'}
+                    onMouseLeave={e=>e.currentTarget.style.background='transparent'}
+                  >
+                    <span style={{fontSize:'.9rem',fontWeight:500,color:'var(--dark)'}}>{opp.label}</span>
+                    <div style={{display:'flex',alignItems:'center',gap:'.75rem',flexShrink:0}}>
+                      <span style={{fontSize:'.8rem',color:'var(--muted)'}}>{opp.value}</span>
+                      <span style={{fontSize:'.68rem',padding:'.2rem .55rem',borderRadius:'999px',background:opp.priority==='High'?'var(--gold-bg)':opp.priority==='Medium'?'var(--blue-bg)':'var(--border)',color:opp.priority==='High'?'var(--amber)':opp.priority==='Medium'?'var(--blue)':'var(--muted)',fontWeight:600,whiteSpace:'nowrap'}}>{opp.priority} Opportunity</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Growth Notes */}
+            <div className="card">
+              <div className="card-head"><div className="card-title">Growth Notes</div></div>
+              <div className="card-body">
+                <textarea className="form-textarea" style={{minHeight:100}} placeholder="Long-term relationship ideas, referral potential, upsell timing…" value={client.growth_notes||''} onChange={e=>setClient(c=>({...c,growth_notes:e.target.value}))} onBlur={e=>upd('growth_notes',e.target.value)}/>
+              </div>
             </div>
           </div>
         )}

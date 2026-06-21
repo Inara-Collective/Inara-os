@@ -13,78 +13,120 @@ const STAGE_COLOR = {
   'No Deal stage': 'var(--muted)',
 }
 
-const SOURCE_PALETTE = ['#B8956A','#4A90B8','#4CAF8A','#8B5CBE','#E87F4A','#D4A843','#E06B8B']
+const CONN_COLORS = {
+  'Cold': 'var(--blue)', 'Warm': 'var(--amber)', 'Hot': 'var(--red)',
+  'Existing relationship': 'var(--teal)', 'Referral': 'var(--purple)',
+  'Past client': 'var(--teal)', 'Event connection': 'var(--gold)'
+}
 
+const LIST_FILTERS = ['All Leads', 'New', 'Warm', 'Cold', 'Hot', 'Won', 'Lost']
+
+function getListFiltered(clients, filter) {
+  const leads = clients.filter(c => SALES_STAGES.includes(c.stage))
+  switch (filter) {
+    case 'New': return leads.filter(c => c.stage === 'New')
+    case 'Warm': return leads.filter(c => c.connection_strength === 'Warm')
+    case 'Cold': return leads.filter(c => c.connection_strength === 'Cold')
+    case 'Hot': return leads.filter(c => c.connection_strength === 'Hot')
+    case 'Won': return leads.filter(c => c.stage === 'Won')
+    case 'Lost': return leads.filter(c => c.stage === 'Lost')
+    default: return leads
+  }
+}
+
+const SOURCE_PALETTE = ['#B8956A', '#4A90B8', '#4CAF8A', '#8B5CBE', '#E87F4A', '#D4A843', '#E06B8B']
 function sourceColor(str) {
   if (!str) return 'rgba(184,149,106,.6)'
   let h = 0
   for (let i = 0; i < str.length; i++) h = str.charCodeAt(i) + ((h << 5) - h)
   return SOURCE_PALETTE[Math.abs(h) % SOURCE_PALETTE.length]
 }
-
 function avatarColor(str) {
   if (!str) return '#88847A'
-  const cols = ['#B8956A','#4A90B8','#4CAF8A','#8B5CBE','#E87F4A','#D4A843','#5B8FBE']
+  const cols = ['#B8956A', '#4A90B8', '#4CAF8A', '#8B5CBE', '#E87F4A', '#D4A843', '#5B8FBE']
   let h = 0
   for (let i = 0; i < str.length; i++) h = str.charCodeAt(i) + ((h << 5) - h)
   return cols[Math.abs(h) % cols.length]
 }
-
 function fmtDate(str) {
   if (!str) return ''
   return new Date(str).toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' })
 }
+function fmtShortDate(str) {
+  if (!str) return ''
+  return new Date(str).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })
+}
 
+/* ── List view row ── */
+function LeadListRow({ client, onClick }) {
+  const ac = avatarColor(client.name)
+  const stageColor = STAGE_COLOR[client.stage] || 'var(--muted)'
+  const connColor = CONN_COLORS[client.connection_strength] || 'var(--muted)'
+  const displayDate = client.next_action_date || client.date_contacted
+  const subtitle = [client.company, client.industry, client.contact_role].filter(Boolean).join(' · ')
+
+  return (
+    <div
+      onClick={onClick}
+      style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '.875rem 1.125rem', background: '#FFFFFF', border: '.5px solid var(--border)', borderRadius: '12px', marginBottom: '.5rem', cursor: 'pointer', transition: 'all .12s' }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--mist-blue)'; e.currentTarget.style.boxShadow = '0 2px 10px rgba(0,0,0,.06)' }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'none' }}
+    >
+      <div style={{ width: 42, height: 42, borderRadius: '11px', background: `${ac}18`, border: `.5px solid ${ac}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '.9rem', color: ac, flexShrink: 0, letterSpacing: 0 }}>
+        {(client.name || '?').slice(0, 2).toUpperCase()}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontWeight: 600, fontSize: '.95rem', color: 'var(--dark)', marginBottom: '.15rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{client.name}</div>
+        {subtitle && <div style={{ fontSize: '.78rem', color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{subtitle}</div>}
+      </div>
+      <span style={{ fontSize: '.72rem', padding: '.22rem .65rem', borderRadius: '999px', background: `${stageColor}18`, color: stageColor, border: `.5px solid ${stageColor}44`, fontWeight: 600, flexShrink: 0, whiteSpace: 'nowrap' }}>{client.stage}</span>
+      {client.connection_strength && (
+        <span style={{ fontSize: '.72rem', padding: '.22rem .65rem', borderRadius: '999px', background: `${connColor}12`, color: connColor, border: `.5px solid ${connColor}33`, fontWeight: 500, flexShrink: 0, whiteSpace: 'nowrap' }}>{client.connection_strength}</span>
+      )}
+      {client.connector_name && (
+        <span style={{ fontSize: '.72rem', color: 'var(--muted)', flexShrink: 0, maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{client.connector_name}</span>
+      )}
+      {displayDate && (
+        <span style={{ fontSize: '.72rem', color: 'var(--muted)', flexShrink: 0, whiteSpace: 'nowrap' }}>
+          {new Date(displayDate) < new Date() && client.stage !== 'Won' && client.stage !== 'Lost'
+            ? <span style={{ color: 'var(--red)', fontWeight: 600 }}>{fmtShortDate(displayDate)}</span>
+            : fmtShortDate(displayDate)}
+        </span>
+      )}
+      {client.next_action_to_take && (
+        <span style={{ fontSize: '.72rem', color: 'var(--muted)', flexShrink: 0, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'none' }}>{client.next_action_to_take}</span>
+      )}
+      {client.assigned_to && (
+        <div style={{ width: 30, height: 30, borderRadius: '8px', background: `${avatarColor(client.assigned_to)}22`, border: `.5px solid ${avatarColor(client.assigned_to)}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '.6rem', fontWeight: 700, color: avatarColor(client.assigned_to), flexShrink: 0 }}>
+          {client.assigned_to.slice(0, 2).toUpperCase()}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ── Kanban card ── */
 function ClientCard({ client, onClick }) {
-  const actions = client.action_taken
-    ? client.action_taken.split(',').map(a => a.trim()).filter(Boolean)
-    : []
+  const actions = client.action_taken ? client.action_taken.split(',').map(a => a.trim()).filter(Boolean) : []
   const sc = sourceColor(client.connector_name)
   const ac = avatarColor(client.assigned_to)
   const displayDate = client.next_action_date || client.date_contacted
   const notesPreview = client.inara_notes?.trim() || client.notes?.trim()
 
   return (
-    <div
-      onClick={onClick}
-      style={{
-        background: 'var(--warm)',
-        border: '.5px solid var(--border)',
-        borderRadius: '8px',
-        padding: '.875rem',
-        marginBottom: '.5rem',
-        cursor: 'pointer',
-        transition: 'border-color .12s, box-shadow .12s',
-      }}
+    <div onClick={onClick} style={{ background: 'var(--warm)', border: '.5px solid var(--border)', borderRadius: '8px', padding: '.875rem', marginBottom: '.5rem', cursor: 'pointer', transition: 'border-color .12s, box-shadow .12s' }}
       onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--gold)'; e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,.07)' }}
       onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'none' }}
     >
-      {/* Date */}
-      {displayDate && (
-        <div style={{ fontSize: '.65rem', color: 'var(--muted)', marginBottom: '.35rem' }}>{fmtDate(displayDate)}</div>
-      )}
-
-      {/* Notes preview */}
-      {notesPreview && (
-        <div style={{ fontSize: '.7rem', color: 'var(--muted)', fontStyle: 'italic', marginBottom: '.4rem', lineHeight: 1.5, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-          {notesPreview}
-        </div>
-      )}
-
-      {/* Assigned person */}
+      {displayDate && <div style={{ fontSize: '.65rem', color: 'var(--muted)', marginBottom: '.35rem' }}>{fmtDate(displayDate)}</div>}
+      {notesPreview && <div style={{ fontSize: '.7rem', color: 'var(--muted)', fontStyle: 'italic', marginBottom: '.4rem', lineHeight: 1.5, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{notesPreview}</div>}
       {client.assigned_to && (
         <div style={{ display: 'flex', alignItems: 'center', gap: '.35rem', marginBottom: '.5rem' }}>
-          <div style={{ width: 18, height: 18, borderRadius: '50%', background: `${ac}22`, border: `.5px solid ${ac}66`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '.52rem', fontWeight: 600, color: ac, flexShrink: 0 }}>
-            {client.assigned_to.slice(0,1).toUpperCase()}
-          </div>
+          <div style={{ width: 18, height: 18, borderRadius: '50%', background: `${ac}22`, border: `.5px solid ${ac}66`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '.52rem', fontWeight: 600, color: ac, flexShrink: 0 }}>{client.assigned_to.slice(0, 1).toUpperCase()}</div>
           <span style={{ fontSize: '.68rem', color: 'var(--muted)' }}>{client.assigned_to}</span>
         </div>
       )}
-
-      {/* Name */}
       <div style={{ fontWeight: 600, fontSize: '.88rem', color: 'var(--dark)', lineHeight: 1.3, marginBottom: '.35rem' }}>{client.name}</div>
-
-      {/* Fit score badge */}
       {client.fit_score && (
         <div style={{ marginBottom: '.35rem' }}>
           {client.fit_score >= 8
@@ -95,27 +137,15 @@ function ClientCard({ client, onClick }) {
           }
         </div>
       )}
-
-      {/* Contact info */}
       {client.contact_email && <div style={{ fontSize: '.7rem', color: 'var(--muted)', marginBottom: '.18rem' }}>{client.contact_email}</div>}
       {client.phone && <div style={{ fontSize: '.7rem', color: 'var(--muted)', marginBottom: '.18rem' }}>{client.phone}</div>}
       {client.company && <div style={{ fontSize: '.7rem', color: 'var(--muted)', marginBottom: '.25rem' }}>{client.company}</div>}
-
-      {/* Source / connector tag */}
       {client.connector_name && (
         <div style={{ marginBottom: '.3rem' }}>
-          <span style={{ display: 'inline-block', fontSize: '.62rem', padding: '.15rem .52rem', borderRadius: '20px', background: `${sc}18`, color: sc, border: `.5px solid ${sc}55`, fontWeight: 500 }}>
-            {client.connector_name}
-          </span>
+          <span style={{ display: 'inline-block', fontSize: '.62rem', padding: '.15rem .52rem', borderRadius: '20px', background: `${sc}18`, color: sc, border: `.5px solid ${sc}55`, fontWeight: 500 }}>{client.connector_name}</span>
         </div>
       )}
-
-      {/* Role */}
-      {client.contact_role && (
-        <div style={{ fontSize: '.68rem', color: 'var(--muted)', marginBottom: '.1rem' }}>{client.contact_role}</div>
-      )}
-
-      {/* Next action + action taken */}
+      {client.contact_role && <div style={{ fontSize: '.68rem', color: 'var(--muted)', marginBottom: '.1rem' }}>{client.contact_role}</div>}
       {(client.next_action_to_take || client.next_action || actions.length > 0) && (
         <div style={{ marginTop: '.5rem', paddingTop: '.5rem', borderTop: '.5px solid var(--border)' }}>
           {(client.next_action_to_take || client.next_action) && (
@@ -128,9 +158,7 @@ function ClientCard({ client, onClick }) {
             <div>
               <div style={{ fontSize: '.5rem', letterSpacing: '.15em', textTransform: 'uppercase', color: 'var(--muted)', fontWeight: 600, marginBottom: '.22rem' }}>Action taken</div>
               <div style={{ display: 'flex', gap: '.28rem', flexWrap: 'wrap' }}>
-                {actions.map((a, i) => (
-                  <span key={i} style={{ fontSize: '.62rem', padding: '.13rem .48rem', borderRadius: '4px', background: 'var(--bg)', border: '.5px solid var(--border)', color: 'var(--dark2)', fontWeight: 400 }}>{a}</span>
-                ))}
+                {actions.map((a, i) => <span key={i} style={{ fontSize: '.62rem', padding: '.13rem .48rem', borderRadius: '4px', background: 'var(--bg)', border: '.5px solid var(--border)', color: 'var(--dark2)', fontWeight: 400 }}>{a}</span>)}
               </div>
             </div>
           )}
@@ -146,6 +174,8 @@ export default function Pipeline() {
   const [loading, setLoading] = useState(true)
   const [showNew, setShowNew] = useState(null)
   const [search, setSearch] = useState('')
+  const [viewMode, setViewMode] = useState('list')
+  const [listFilter, setListFilter] = useState('All Leads')
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -160,69 +190,87 @@ export default function Pipeline() {
     c.company?.toLowerCase().includes(search.toLowerCase())
   )
 
-  const handleNew = (c) => { setClients(p => [c, ...p]); setShowNew(false) }
+  const handleNew = (c) => { setClients(p => [c, ...p]); setShowNew(null) }
 
-  if (loading) return <div className="page"><div className="loading"><div className="spinner"></div>Loading pipeline...</div></div>
+  if (loading) return <div className="page"><div className="loading"><div className="spinner"></div>Loading...</div></div>
 
   return (
-    <div style={{ minWidth: 'max-content', height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <div className="topbar">
-        <div className="topbar-title">Pipeline</div>
+        <div className="topbar-title">Leads</div>
         <div className="topbar-actions">
-          <input
-            className="form-input"
-            style={{ width: 220, padding: '.4rem .75rem' }}
-            placeholder="Search..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
-          <button className="btn btn-primary" onClick={() => setShowNew('New')}>+ New deal</button>
+          <input className="form-input" style={{ width: 220, padding: '.4rem .75rem' }} placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} />
+          <div style={{ display: 'flex', border: '1.5px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
+            <button onClick={() => setViewMode('list')} style={{ padding: '.45rem 1rem', fontSize: '.8rem', background: viewMode === 'list' ? 'var(--dark)' : 'transparent', color: viewMode === 'list' ? '#fff' : 'var(--muted)', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: viewMode === 'list' ? 700 : 400 }}>List</button>
+            <button onClick={() => setViewMode('board')} style={{ padding: '.45rem 1rem', fontSize: '.8rem', background: viewMode === 'board' ? 'var(--dark)' : 'transparent', color: viewMode === 'board' ? '#fff' : 'var(--muted)', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: viewMode === 'board' ? 700 : 400 }}>Board</button>
+          </div>
+          <button className="btn btn-primary" onClick={() => setShowNew('New')}>+ Add Lead</button>
         </div>
       </div>
 
-      <div style={{ padding: '1.25rem 1.75rem 2rem', flex: 1, overflowY: 'auto', overflowX: 'auto' }}>
-        <div style={{ display: 'flex', gap: '.875rem', alignItems: 'start' }}>
-          {SALES_STAGES.map(stage => {
-            const col = filtered.filter(c => c.stage === stage)
-            const color = STAGE_COLOR[stage]
-            return (
-              <div key={stage} style={{ width: 220, flexShrink: 0 }}>
-                {/* Column header */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.625rem', padding: '0 .1rem' }}>
-                  <span style={{ fontSize: '.72rem', fontWeight: 600, color, letterSpacing: '.04em' }}>{stage}</span>
-                  <span style={{ fontSize: '.68rem', color: 'var(--muted)', fontWeight: 400 }}>{col.length}</span>
-                </div>
-
-                {/* Cards */}
-                {col.map(c => (
-                  <ClientCard key={c.id} client={c} onClick={() => navigate(`/pipeline/${c.id}`)} />
-                ))}
-
-                {/* Empty state */}
-                {col.length === 0 && (
-                  <div style={{ textAlign: 'center', padding: '1.25rem .5rem', color: 'var(--border)', fontSize: '.7rem' }}>—</div>
-                )}
-
-                {/* Add new deal */}
-                <button
-                  onClick={() => setShowNew(stage)}
-                  style={{ width: '100%', background: 'none', border: 'none', padding: '.35rem .1rem', color: 'var(--muted)', fontSize: '.7rem', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '.3rem', opacity: .6 }}
-                  onMouseEnter={e => e.currentTarget.style.opacity = 1}
-                  onMouseLeave={e => e.currentTarget.style.opacity = .6}
-                >
-                  <span style={{ fontSize: '.85rem', lineHeight: 1 }}>+</span> New deal
+      {/* ── List view ── */}
+      {viewMode === 'list' && (
+        <div style={{ padding: '1.5rem 2rem 2.5rem', flex: 1, overflowY: 'auto' }}>
+          {/* Filter pills */}
+          <div style={{ display: 'flex', gap: '.5rem', marginBottom: '1.375rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            {LIST_FILTERS.map(f => {
+              const count = getListFiltered(filtered, f).length
+              const active = listFilter === f
+              return (
+                <button key={f} onClick={() => setListFilter(f)} style={{ padding: '.38rem 1rem', borderRadius: '999px', fontSize: '.875rem', fontWeight: active ? 700 : 400, cursor: 'pointer', border: active ? '1.5px solid var(--mist-blue)' : '1.5px solid var(--border)', background: active ? 'var(--pale-cloud)' : 'transparent', color: active ? '#2E6080' : 'var(--muted)', display: 'flex', alignItems: 'center', gap: '.4rem', fontFamily: 'inherit', transition: 'all .12s', whiteSpace: 'nowrap' }}>
+                  {f}{count > 0 && <span style={{ fontWeight: 700 }}>{count}</span>}
                 </button>
-              </div>
-            )
-          })}
+              )
+            })}
+          </div>
+
+          {getListFiltered(filtered, listFilter).map(c => (
+            <LeadListRow key={c.id} client={c} onClick={() => navigate(`/pipeline/${c.id}`)} />
+          ))}
+
+          {getListFiltered(filtered, listFilter).length === 0 && (
+            <div className="empty">
+              <div className="empty-icon">◈</div>
+              <div className="empty-title">No leads here</div>
+              <div className="empty-sub">Try a different filter, or add a new lead to get started.</div>
+            </div>
+          )}
         </div>
-      </div>
+      )}
+
+      {/* ── Board view ── */}
+      {viewMode === 'board' && (
+        <div style={{ padding: '1.25rem 1.75rem 2rem', flex: 1, overflowY: 'auto', overflowX: 'auto' }}>
+          <div style={{ display: 'flex', gap: '.875rem', alignItems: 'start' }}>
+            {SALES_STAGES.map(stage => {
+              const col = filtered.filter(c => c.stage === stage)
+              const color = STAGE_COLOR[stage]
+              return (
+                <div key={stage} style={{ width: 220, flexShrink: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.625rem', padding: '0 .1rem' }}>
+                    <span style={{ fontSize: '.72rem', fontWeight: 600, color, letterSpacing: '.04em' }}>{stage}</span>
+                    <span style={{ fontSize: '.68rem', color: 'var(--muted)', fontWeight: 400 }}>{col.length}</span>
+                  </div>
+                  {col.map(c => <ClientCard key={c.id} client={c} onClick={() => navigate(`/pipeline/${c.id}`)} />)}
+                  {col.length === 0 && <div style={{ textAlign: 'center', padding: '1.25rem .5rem', color: 'var(--border)', fontSize: '.7rem' }}>—</div>}
+                  <button onClick={() => setShowNew(stage)} style={{ width: '100%', background: 'none', border: 'none', padding: '.35rem .1rem', color: 'var(--muted)', fontSize: '.7rem', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '.3rem', opacity: .6 }}
+                    onMouseEnter={e => e.currentTarget.style.opacity = 1}
+                    onMouseLeave={e => e.currentTarget.style.opacity = .6}
+                  >
+                    <span style={{ fontSize: '.85rem', lineHeight: 1 }}>+</span> New deal
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {showNew && (
         <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowNew(null)}>
           <div className="modal" style={{ maxWidth: 560 }}>
             <div className="modal-head">
-              <div className="modal-title">New Deal</div>
+              <div className="modal-title">New Lead</div>
               <button className="btn btn-ghost btn-sm" onClick={() => setShowNew(null)}>✕</button>
             </div>
             <NewDealForm defaultStage={showNew} users={users} onClose={() => setShowNew(null)} onSave={handleNew} />
@@ -320,9 +368,8 @@ function NewDealForm({ defaultStage = 'New', users = [], onClose, onSave }) {
       </div>
       <div className="modal-foot">
         <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-        <button className="btn btn-primary" onClick={handleSave} disabled={saving || !form.name.trim()}>{saving ? 'Creating...' : 'Create deal'}</button>
+        <button className="btn btn-primary" onClick={handleSave} disabled={saving || !form.name.trim()}>{saving ? 'Saving…' : 'Add lead'}</button>
       </div>
     </>
   )
 }
-
