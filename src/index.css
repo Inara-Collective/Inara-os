@@ -4,49 +4,190 @@
 
 @layer base {
   :root {
-    --inara-cream:     #F4F0EE;
-    --inara-ink:       #323642;
-    --inara-navy:      #424B63;
-    --inara-bluegrey:  #B7C1CB;
-    --inara-sage:      #BABEAF;
-    --inara-blush:     #ECD6CE;
-    --inara-card:      #FFFFFF;
+    /* Core named palette */
+    --cream:    #F4F0EE;
+    --white:    #FFFFFF;
+    --ink:      #323642;
+    --navy:     #424B63;
+    --bluegrey: #B7C1CB;
+    --sage:     #BABEAF;
+    --blush:    #ECD6CE;
 
-    --background: 20 21% 95%;
-    --foreground: 225 14% 23%;
-    --card: 0 0% 100%;
-    --card-foreground: 225 14% 23%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 225 14% 23%;
-    --primary: 224 20% 32%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 210 16% 76%;
-    --secondary-foreground: 225 14% 23%;
-    --muted: 20 21% 95%;
-    --muted-foreground: 224 12% 45%;
-    --accent: 76 10% 72%;
-    --accent-foreground: 225 14% 23%;
-    --destructive: 0 60% 55%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 210 16% 82%;
-    --input: 210 16% 82%;
-    --ring: 224 20% 32%;
+    /* Bridge: old inline-style var names → valid hex values */
+    --bg:       #F4F0EE;
+    --warm:     #FFFFFF;
+    --dark:     #323642;
+    --border:   #D1D8DE;
+    --muted:    #6B7485;
+    --teal:     #424B63;
+    --amber:    #B8956A;
+    --red:      #C0392B;
+    --gold-bg:  #ECD6CE;
+    --blue:     #4A90B8;
+    --purple:   #8B5CBE;
+    --gold:     #D4A843;
+
     --radius: 0.75rem;
   }
 }
 
 @layer base {
-  * {
-    border-color: hsl(var(--border));
+  *, *::before, *::after {
+    box-sizing: border-box;
+    border-color: #D1D8DE;
   }
   body {
-    background-color: hsl(var(--background));
-    color: hsl(var(--foreground));
+    background-color: #F4F0EE;
+    color: #323642;
     font-family: "Atkinson Hyperlegible Next", system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
   }
-  h1, h2, .display {
+  h1, h2, .font-display {
     font-family: "Cormorant Garamond", Georgia, serif;
     letter-spacing: 0.01em;
   }
+}
+
+@layer components {
+
+  /* ── Page wrapper ─────────────────────────── */
+  .page {
+    @apply p-6;
+  }
+
+  /* ── Topbar ───────────────────────────────── */
+  .topbar {
+    @apply flex items-center justify-between px-6 py-4 bg-white border-b border-border sticky top-0 z-10;
+  }
+  .topbar-title {
+    @apply font-display text-lg text-ink;
+  }
+  .topbar-actions {
+    @apply flex items-center gap-2;
+  }
+
+  /* ── Cards ────────────────────────────────── */
+  .card {
+    @apply bg-white rounded-lg shadow-card border border-border overflow-hidden;
+  }
+  .card-head {
+    @apply flex items-center justify-between px-5 py-3.5 border-b border-border;
+  }
+  .card-title {
+    @apply text-sm font-semibold text-ink;
+  }
+
+  /* ── KPI stat tiles ───────────────────────── */
+  .kpi {
+    @apply bg-white rounded-lg shadow-card border border-border p-5;
+  }
+  .kpi-label {
+    @apply text-[0.65rem] text-muted-foreground uppercase tracking-wider mb-1;
+  }
+  .kpi-value {
+    @apply text-2xl font-semibold text-ink leading-none;
+  }
+  .kpi-sub {
+    @apply text-[0.65rem] text-muted-foreground mt-1;
+  }
+
+  /* ── Buttons ──────────────────────────────── */
+  .btn {
+    @apply inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer;
+    border: none;
+  }
+  .btn-primary {
+    @apply btn bg-navy text-white hover:bg-ink;
+  }
+  .btn-ghost {
+    @apply btn bg-transparent text-muted-foreground hover:bg-cream hover:text-ink;
+  }
+  .btn-gold {
+    @apply btn bg-navy text-white hover:bg-ink;
+  }
+  .btn-danger {
+    @apply btn bg-destructive text-white hover:opacity-90;
+  }
+  .btn-xs {
+    @apply px-2 py-1 text-[0.65rem];
+  }
+  .btn-sm {
+    @apply px-3 py-1.5 text-xs;
+  }
+
+  /* ── Badges ───────────────────────────────── */
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-[0.65rem] font-medium;
+  }
+  .badge-teal, .badge-primary, .badge-navy {
+    @apply badge bg-navy/10 text-navy;
+  }
+  .badge-sage, .badge-green {
+    @apply badge bg-sage/40 text-ink;
+  }
+  .badge-blush, .badge-amber, .badge-warm {
+    @apply badge bg-blush text-ink;
+  }
+  .badge-gray, .badge-grey, .badge-neutral {
+    @apply badge bg-bluegrey/25 text-ink;
+  }
+  .badge-red, .badge-danger {
+    @apply badge bg-red-100 text-red-700;
+  }
+
+  /* ── Forms ────────────────────────────────── */
+  .form-group {
+    @apply flex flex-col gap-1;
+  }
+  .form-label {
+    @apply text-xs font-medium text-muted-foreground;
+  }
+  .form-input {
+    @apply w-full px-3 py-2 text-sm bg-white border border-border rounded-md text-ink placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-navy;
+  }
+  select.form-input {
+    @apply appearance-none;
+  }
+  textarea.form-input {
+    @apply resize-y;
+  }
+
+  /* ── Grids ────────────────────────────────── */
+  .g2 { @apply grid grid-cols-2 gap-4; }
+  .g3 { @apply grid grid-cols-3 gap-4; }
+  .g4 { @apply grid grid-cols-4 gap-4; }
+
+  /* ── Empty / loading states ───────────────── */
+  .empty {
+    @apply py-12 text-center text-sm text-muted-foreground;
+  }
+  .loading {
+    @apply flex items-center gap-3 p-8 text-sm text-muted-foreground;
+  }
+  .spinner {
+    display: inline-block;
+    width: 1rem;
+    height: 1rem;
+    border-radius: 9999px;
+    border: 2px solid #D1D8DE;
+    border-top-color: #424B63;
+    animation: spin 0.7s linear infinite;
+    flex-shrink: 0;
+  }
+
+  /* ── Modal ────────────────────────────────── */
+  .modal-overlay {
+    @apply fixed inset-0 z-50 flex items-center justify-center p-4;
+    background: rgba(50, 54, 66, 0.35);
+  }
+  .modal {
+    @apply bg-white rounded-lg shadow-card w-full max-w-lg p-6;
+  }
+  .modal-title {
+    @apply font-display text-base text-ink mb-4;
+  }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }

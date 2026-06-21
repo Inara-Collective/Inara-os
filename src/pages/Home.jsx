@@ -4,7 +4,20 @@ import { useAuth } from '../App.jsx'
 import { getClients, getAllTasks } from '../lib/supabase.js'
 
 const ACTIVE_STAGES = ['Onboarding','Stage 1 — Clarity','Stage 2 — Structure','Stage 3 — Growth Partner','Dial an Inara']
-const SALES_STAGES = ['New','Reached out','To Action','Discovery','Negotiation']
+const SALES_STAGES  = ['New','Reached out','To Action','Discovery','Negotiation']
+
+function StatTile({ label, value, sub, accent, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      className="bg-white rounded-lg shadow-card border border-border p-5 text-left w-full hover:border-navy/40 transition-colors"
+    >
+      <div className="text-[0.62rem] uppercase tracking-wider text-muted-foreground mb-1.5">{label}</div>
+      <div className={`text-2xl font-semibold leading-none ${accent ? 'text-navy' : 'text-ink'}`}>{value}</div>
+      {sub && <div className="text-[0.62rem] text-muted-foreground mt-1.5">{sub}</div>}
+    </button>
+  )
+}
 
 export default function Home() {
   const { profile } = useAuth()
@@ -19,30 +32,29 @@ export default function Home() {
       .catch(() => setLoading(false))
   }, [])
 
-  const now = new Date()
-  const thisMonth = now.getMonth()
-  const thisYear = now.getFullYear()
+  const now   = new Date()
+  const month = now.getMonth()
+  const year  = now.getFullYear()
 
-  const active = clients.filter(c => ACTIVE_STAGES.includes(c.stage))
+  const active  = clients.filter(c => ACTIVE_STAGES.includes(c.stage))
   const pipeline = clients.filter(c => SALES_STAGES.includes(c.stage))
   const monthlyRevenue = active.reduce((s, c) => s + (c.mrr || 0), 0)
-  const pipelineValue = pipeline.reduce((s, c) => s + (c.mrr || 0), 0)
+  const pipelineValue  = pipeline.reduce((s, c) => s + (c.mrr || 0), 0)
   const closedThisMonth = active.filter(c => {
     if (!c.contract_start) return false
     const d = new Date(c.contract_start)
-    return d.getMonth() === thisMonth && d.getFullYear() === thisYear
+    return d.getMonth() === month && d.getFullYear() === year
   })
 
-  const blocked = tasks.filter(t => t.status === 'Blocked')
-  const overdue = tasks.filter(t =>
+  const blocked  = tasks.filter(t => t.status === 'Blocked')
+  const overdue  = tasks.filter(t =>
     t.due_date && new Date(t.due_date) < now && t.status !== 'Complete' && t.status !== 'Done'
   )
   const awaiting = tasks.filter(t => t.status === 'Awaiting Approval')
 
   const contractReviews = active.filter(c => {
     if (!c.contract_end) return false
-    const end = new Date(c.contract_end)
-    const days = Math.ceil((end - now) / 86400000)
+    const days = Math.ceil((new Date(c.contract_end) - now) / 86400000)
     return days >= 0 && days <= 30
   })
 
@@ -53,96 +65,127 @@ export default function Home() {
     return 'Good evening'
   }
 
-  const name = profile?.name || profile?.email?.split('@')[0] || ''
-
-  if (loading) return <div className="page"><div className="loading"><div className="spinner"></div>Loading...</div></div>
-
+  const name      = profile?.name || profile?.email?.split('@')[0] || ''
   const alertCount = blocked.length + overdue.length
+  const dateStr   = now.toLocaleDateString('en-NZ', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+
+  if (loading) {
+    return (
+      <div className="page flex items-center gap-3 text-sm text-muted-foreground">
+        <span className="spinner" /> Loading…
+      </div>
+    )
+  }
 
   return (
     <div>
+      {/* Topbar */}
       <div className="topbar">
         <div>
           <div className="topbar-title">{greeting()}{name ? `, ${name}` : ''}</div>
-          <div style={{ fontSize: '.68rem', color: 'var(--muted)', marginTop: '.15rem' }}>
-            {now.toLocaleDateString('en-NZ', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-          </div>
+          <div className="text-[0.68rem] text-muted-foreground mt-0.5">{dateStr}</div>
         </div>
       </div>
-      <div className="page">
 
-        {/* KPI tiles */}
-        <div className="g4" style={{ marginBottom: '1.5rem' }}>
-          {[
-            { label: 'Active Clients', value: active.length, sub: 'in delivery', link: '/clients' },
-            { label: 'Monthly Revenue', value: `$${monthlyRevenue.toLocaleString()}`, sub: 'confirmed MRR', link: '/clients' },
-            { label: 'Pipeline Value', value: pipelineValue > 0 ? `$${pipelineValue.toLocaleString()}` : `${pipeline.length} leads`, sub: 'in sales stages', link: '/pipeline' },
-            { label: 'Closed This Month', value: closedThisMonth.length, sub: 'new active clients', link: '/clients', accent: closedThisMonth.length > 0 ? 'var(--teal)' : null },
-          ].map(({ label, value, sub, link, accent }) => (
-            <div key={label} className="kpi" style={{ cursor: 'pointer' }} onClick={() => navigate(link)}>
-              <div className="kpi-label">{label}</div>
-              <div className="kpi-value" style={accent ? { color: accent } : {}}>{value}</div>
-              <div className="kpi-sub">{sub}</div>
-            </div>
-          ))}
+      <div className="page max-w-6xl">
+
+        {/* KPI row */}
+        <div className="grid grid-cols-4 gap-4 mb-6">
+          <StatTile
+            label="Active Clients"
+            value={active.length}
+            sub="in delivery"
+            onClick={() => navigate('/clients')}
+          />
+          <StatTile
+            label="Monthly Revenue"
+            value={`$${monthlyRevenue.toLocaleString()}`}
+            sub="confirmed MRR"
+            onClick={() => navigate('/clients')}
+          />
+          <StatTile
+            label="Pipeline Value"
+            value={pipelineValue > 0 ? `$${pipelineValue.toLocaleString()}` : `${pipeline.length} leads`}
+            sub="in sales stages"
+            onClick={() => navigate('/pipeline')}
+          />
+          <StatTile
+            label="Closed This Month"
+            value={closedThisMonth.length}
+            sub="new active clients"
+            accent={closedThisMonth.length > 0}
+            onClick={() => navigate('/clients')}
+          />
         </div>
 
         {/* Alerts banner */}
         {alertCount > 0 && (
-          <div style={{ marginBottom: '1.5rem', background: 'rgba(184,74,74,.06)', border: '.5px solid var(--red)', borderRadius: '8px', padding: '1rem 1.25rem' }}>
-            <div style={{ fontSize: '.6rem', letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--red)', fontWeight: 600, marginBottom: '.75rem' }}>
-              Alerts — {alertCount} item{alertCount !== 1 ? 's' : ''} need attention
+          <div className="mb-6 bg-red-50 border border-red-200 rounded-lg px-5 py-4">
+            <div className="text-[0.58rem] font-semibold uppercase tracking-[0.16em] text-red-600 mb-2.5">
+              {alertCount} item{alertCount !== 1 ? 's' : ''} need attention
             </div>
-            <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
+            <div className="flex flex-wrap gap-5">
               {blocked.slice(0, 5).map(t => (
-                <div key={t.id} onClick={() => navigate('/delivery')} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '.4rem' }}>
-                  <span style={{ fontSize: '.64rem', color: 'var(--red)', fontWeight: 500 }}>⛔</span>
+                <button key={t.id} onClick={() => navigate('/delivery')}
+                  className="flex items-center gap-1.5 text-left bg-transparent border-0 p-0 cursor-pointer">
+                  <span className="text-xs text-red-500">⛔</span>
                   <div>
-                    <div style={{ fontSize: '.75rem', fontWeight: 500, color: 'var(--red)' }}>{t.name}</div>
-                    {t.clients?.name && <div style={{ fontSize: '.62rem', color: 'var(--muted)' }}>{t.clients.name}</div>}
+                    <div className="text-xs font-medium text-red-700">{t.name}</div>
+                    {t.clients?.name && <div className="text-[0.62rem] text-muted-foreground">{t.clients.name}</div>}
                   </div>
-                </div>
+                </button>
               ))}
               {overdue.slice(0, 5).map(t => (
-                <div key={t.id} onClick={() => navigate('/delivery')} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '.4rem' }}>
-                  <span style={{ fontSize: '.64rem', color: 'var(--amber)', fontWeight: 500 }}>⚠</span>
+                <button key={t.id} onClick={() => navigate('/delivery')}
+                  className="flex items-center gap-1.5 text-left bg-transparent border-0 p-0 cursor-pointer">
+                  <span className="text-xs text-amber-500">⚠</span>
                   <div>
-                    <div style={{ fontSize: '.75rem', fontWeight: 500 }}>{t.name}</div>
-                    <div style={{ fontSize: '.62rem', color: 'var(--red)' }}>Overdue {new Date(t.due_date).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })}</div>
+                    <div className="text-xs font-medium text-ink">{t.name}</div>
+                    <div className="text-[0.62rem] text-red-600">
+                      Overdue {new Date(t.due_date).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })}
+                    </div>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           </div>
         )}
 
         {/* Main two-column */}
-        <div className="g2" style={{ gap: '1.25rem', alignItems: 'start' }}>
-          {/* Active clients */}
+        <div className="grid grid-cols-2 gap-5 items-start">
+
+          {/* Active clients card */}
           <div className="card">
             <div className="card-head">
               <div className="card-title">Active Clients</div>
               <button className="btn btn-ghost btn-xs" onClick={() => navigate('/clients')}>View all</button>
             </div>
             {active.length === 0 ? (
-              <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--muted)', fontSize: '.78rem' }}>No active clients yet.</div>
+              <div className="empty">No active clients yet.</div>
             ) : active.map(c => (
-              <div key={c.id} onClick={() => navigate(`/pipeline/${c.id}`)} style={{ padding: '.65rem 1.25rem', borderBottom: '.5px solid var(--border)', display: 'flex', alignItems: 'center', gap: '.75rem', cursor: 'pointer' }}>
-                <div style={{ width: 28, height: 28, borderRadius: 6, background: 'var(--gold-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '.6rem', fontWeight: 500, color: 'var(--amber)', flexShrink: 0 }}>
+              <button
+                key={c.id}
+                onClick={() => navigate(`/pipeline/${c.id}`)}
+                className="w-full text-left flex items-center gap-3 px-5 py-3 border-b border-border last:border-b-0 hover:bg-cream/60 transition-colors bg-transparent"
+              >
+                <div className="w-7 h-7 rounded-md bg-blush flex items-center justify-center text-[0.58rem] font-semibold text-ink flex-shrink-0">
                   {(c.name || '?').slice(0, 2).toUpperCase()}
                 </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div className="truncate" style={{ fontSize: '.8rem', fontWeight: 500 }}>{c.name}</div>
-                  <div style={{ fontSize: '.66rem', color: 'var(--muted)' }}>{c.stage}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-ink truncate">{c.name}</div>
+                  <div className="text-[0.65rem] text-muted-foreground">{c.stage}</div>
                 </div>
-                {c.health && <span style={{ fontSize: '.72rem' }}>{c.health.split(' ')[0]}</span>}
-                {c.mrr > 0 && <span className="badge badge-teal" style={{ fontSize: '.58rem' }}>${c.mrr.toLocaleString()}/mo</span>}
-              </div>
+                {c.health && <span className="text-sm">{c.health.split(' ')[0]}</span>}
+                {c.mrr > 0 && (
+                  <span className="badge badge-teal text-[0.58rem]">${c.mrr.toLocaleString()}/mo</span>
+                )}
+              </button>
             ))}
           </div>
 
           {/* Right column */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <div className="flex flex-col gap-5">
+
             {/* Awaiting approval */}
             <div className="card">
               <div className="card-head">
@@ -150,52 +193,60 @@ export default function Home() {
                 <button className="btn btn-ghost btn-xs" onClick={() => navigate('/delivery')}>Review</button>
               </div>
               {awaiting.length === 0 ? (
-                <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--muted)', fontSize: '.78rem' }}>Nothing pending approval.</div>
+                <div className="empty text-sm py-6">Nothing pending approval.</div>
               ) : awaiting.slice(0, 6).map(t => (
-                <div key={t.id} style={{ padding: '.65rem 1.25rem', borderBottom: '.5px solid var(--border)', display: 'flex', alignItems: 'center', gap: '.75rem' }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div className="truncate" style={{ fontSize: '.78rem', fontWeight: 500 }}>{t.name}</div>
-                    <div style={{ fontSize: '.66rem', color: 'var(--muted)' }}>{t.clients?.name}</div>
+                <div key={t.id} className="flex items-center gap-3 px-5 py-3 border-b border-border last:border-b-0">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-ink truncate">{t.name}</div>
+                    <div className="text-[0.65rem] text-muted-foreground">{t.clients?.name}</div>
                   </div>
-                  <span className="badge badge-amber">Pending</span>
+                  <span className="badge badge-blush">Pending</span>
                 </div>
               ))}
             </div>
 
             {/* Contract reviews */}
             {contractReviews.length > 0 && (
-              <div className="card" style={{ borderColor: 'var(--amber)' }}>
+              <div className="card border-amber-200">
                 <div className="card-head">
-                  <div className="card-title" style={{ color: 'var(--amber)' }}>Contract Reviews Due</div>
+                  <div className="card-title text-amber-700">Contract Reviews Due</div>
                 </div>
                 {contractReviews.map(c => (
-                  <div key={c.id} onClick={() => navigate(`/pipeline/${c.id}`)} style={{ padding: '.65rem 1.25rem', borderBottom: '.5px solid var(--border)', display: 'flex', alignItems: 'center', gap: '.75rem', cursor: 'pointer' }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div className="truncate" style={{ fontSize: '.78rem', fontWeight: 500 }}>{c.name}</div>
-                      <div style={{ fontSize: '.66rem', color: 'var(--muted)' }}>
+                  <button
+                    key={c.id}
+                    onClick={() => navigate(`/pipeline/${c.id}`)}
+                    className="w-full text-left flex items-center gap-3 px-5 py-3 border-b border-border last:border-b-0 hover:bg-cream/60 transition-colors bg-transparent"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-ink truncate">{c.name}</div>
+                      <div className="text-[0.65rem] text-muted-foreground">
                         Contract ends {new Date(c.contract_end).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })}
                       </div>
                     </div>
-                    <span className="badge badge-amber">Review</span>
-                  </div>
+                    <span className="badge badge-blush">Review</span>
+                  </button>
                 ))}
               </div>
             )}
 
-            {/* New clients this month */}
+            {/* Closed this month */}
             {closedThisMonth.length > 0 && (
-              <div className="card" style={{ borderColor: 'var(--teal)' }}>
+              <div className="card border-navy/30">
                 <div className="card-head">
-                  <div className="card-title" style={{ color: 'var(--teal)' }}>Closed This Month</div>
+                  <div className="card-title text-navy">Closed This Month</div>
                 </div>
                 {closedThisMonth.map(c => (
-                  <div key={c.id} onClick={() => navigate(`/pipeline/${c.id}`)} style={{ padding: '.65rem 1.25rem', borderBottom: '.5px solid var(--border)', display: 'flex', alignItems: 'center', gap: '.75rem', cursor: 'pointer' }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div className="truncate" style={{ fontSize: '.78rem', fontWeight: 500 }}>{c.name}</div>
-                      <div style={{ fontSize: '.66rem', color: 'var(--muted)' }}>{c.stage}</div>
+                  <button
+                    key={c.id}
+                    onClick={() => navigate(`/pipeline/${c.id}`)}
+                    className="w-full text-left flex items-center gap-3 px-5 py-3 border-b border-border last:border-b-0 hover:bg-cream/60 transition-colors bg-transparent"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-ink truncate">{c.name}</div>
+                      <div className="text-[0.65rem] text-muted-foreground">{c.stage}</div>
                     </div>
                     {c.mrr > 0 && <span className="badge badge-teal">${c.mrr.toLocaleString()}/mo</span>}
-                  </div>
+                  </button>
                 ))}
               </div>
             )}
