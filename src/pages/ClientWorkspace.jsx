@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../App.jsx'
-import { getClient } from '../lib/supabase.js'
+import { getClient, getClientTasks } from '../lib/supabase.js'
 
 const SECTIONS = [
   { id: 'home',         label: 'Client Home' },
@@ -66,6 +66,25 @@ function MiniBarChart({ data = [12, 20, 16, 28, 22, 34, 48], accent = '#424B63',
 }
 
 function ClientHomeSection({ client }) {
+  const [healthOpen, setHealthOpen]     = useState(false)
+  const [tasks, setTasks]               = useState(null)
+  const [tasksLoading, setTasksLoading] = useState(false)
+
+  const toggleHealth = async () => {
+    if (!healthOpen && tasks === null) {
+      setTasksLoading(true)
+      try {
+        const all = await getClientTasks(client.id)
+        setTasks(all)
+      } catch { setTasks([]) }
+      setTasksLoading(false)
+    }
+    setHealthOpen(o => !o)
+  }
+
+  const doneTasks     = (tasks || []).filter(t => t.status === 'Done' || t.status === 'Complete')
+  const resolvedTasks = (tasks || []).filter(t => t.status === 'Resolved')
+
   const projectHealth = {
     status: 'On Track',
     statusBadge: 'badge-sage',
@@ -98,14 +117,20 @@ function ClientHomeSection({ client }) {
 
       {/* Row 1: Health + Project Health */}
       <div className="grid grid-cols-3 gap-4 mb-4">
-        <div className="card p-5 flex flex-col items-center justify-center text-center">
+        <button
+          onClick={toggleHealth}
+          className={`card p-5 flex flex-col items-center justify-center text-center w-full hover:border-navy/40 transition-colors ${healthOpen ? 'border-navy/40 bg-cream/30' : ''}`}
+        >
           <div className="text-[0.58rem] font-semibold uppercase tracking-wider text-muted-foreground mb-3">
             Client Health
           </div>
           <HealthGauge score={92} />
           <div className="mt-3 text-sm font-semibold text-ink">Excellent</div>
           <div className="text-[0.62rem] text-muted-foreground mt-0.5">You're on track!</div>
-        </div>
+          <div className="text-[0.6rem] text-navy mt-3 opacity-70">
+            {healthOpen ? '↑ Hide' : '↓ See completed & resolved'}
+          </div>
+        </button>
 
         <div className="card p-5 col-span-2">
           <div className="flex items-center justify-between mb-5">
@@ -132,6 +157,79 @@ function ClientHomeSection({ client }) {
           </div>
         </div>
       </div>
+
+      {/* Health detail panel */}
+      {healthOpen && (
+        <div className="card p-5 mb-4">
+          <div className="flex items-center justify-between mb-4">
+            <div className="text-[0.58rem] font-semibold uppercase tracking-wider text-muted-foreground">
+              Completed &amp; Resolved
+            </div>
+            <button
+              onClick={() => setHealthOpen(false)}
+              className="text-xs text-muted-foreground hover:text-ink transition-colors w-5 h-5 flex items-center justify-center rounded"
+            >
+              ✕
+            </button>
+          </div>
+
+          {tasksLoading ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+              <span className="spinner" /> Loading tasks…
+            </div>
+          ) : doneTasks.length === 0 && resolvedTasks.length === 0 ? (
+            <div className="py-8 text-center text-sm text-muted-foreground">
+              No completed or resolved tasks yet.
+            </div>
+          ) : (
+            <div>
+              {doneTasks.length > 0 && (
+                <div className="mb-4">
+                  <div className="text-[0.56rem] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2">
+                    Done ({doneTasks.length})
+                  </div>
+                  {doneTasks.map(t => (
+                    <div key={t.id} className="flex items-center gap-3 py-2.5 border-b border-border last:border-b-0">
+                      <div className="w-5 h-5 rounded-full bg-sage/30 flex items-center justify-center flex-shrink-0">
+                        <span className="text-[0.6rem] text-ink font-bold">✓</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-medium text-ink truncate">{t.name}</div>
+                        {t.category && <div className="text-[0.6rem] text-muted-foreground">{t.category}</div>}
+                      </div>
+                      {t.owner && <span className="badge badge-gray text-[0.58rem]">{t.owner}</span>}
+                      {t.due_date && (
+                        <span className="text-[0.6rem] text-muted-foreground flex-shrink-0">
+                          {new Date(t.due_date).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {resolvedTasks.length > 0 && (
+                <div>
+                  <div className="text-[0.56rem] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2">
+                    Resolved ({resolvedTasks.length})
+                  </div>
+                  {resolvedTasks.map(t => (
+                    <div key={t.id} className="flex items-center gap-3 py-2.5 border-b border-border last:border-b-0">
+                      <div className="w-5 h-5 rounded-full bg-blush flex items-center justify-center flex-shrink-0">
+                        <span className="text-[0.6rem] text-ink font-bold">↺</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-medium text-ink truncate">{t.name}</div>
+                        {t.category && <div className="text-[0.6rem] text-muted-foreground">{t.category}</div>}
+                      </div>
+                      {t.owner && <span className="badge badge-gray text-[0.58rem]">{t.owner}</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Row 2: Suggestions + Emails Sent + Current Focus */}
       <div className="grid grid-cols-3 gap-4 mb-4">
