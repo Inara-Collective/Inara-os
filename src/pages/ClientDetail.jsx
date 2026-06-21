@@ -128,6 +128,11 @@ export default function ClientDetail() {
   const [expandedMonth, setExpandedMonth] = useState(null)
   const [showAddSuggestion, setShowAddSuggestion] = useState(false)
   const [newSuggestionForm, setNewSuggestionForm] = useState({ title:'', reason:'', impact:'', priority:'Medium', status:'Pending' })
+  const [showAddContent, setShowAddContent] = useState(false)
+  const [newContentForm, setNewContentForm] = useState({ title:'', type:'Post', platforms:[], status:'Ideas', due_date:'' })
+  const [showAddCampaign, setShowAddCampaign] = useState(false)
+  const [newCampaignForm, setNewCampaignForm] = useState({ subject:'', sent_date:'', opens:'', clicks:'', status:'Draft' })
+  const [websiteSubTab, setWebsiteSubTab] = useState('Tasks')
 
   useEffect(() => {
     getClient(id)
@@ -142,7 +147,7 @@ export default function ClientDetail() {
 
   useEffect(() => {
     if (tab === 'comments') getClientComments(id).then(setComments).catch(() => {})
-    if (tab === 'emails') getClientEmails(id).then(setEmails).catch(() => {})
+    if (tab === 'emails' || tab === 'home') getClientEmails(id).then(setEmails).catch(() => {})
   }, [tab, id])
 
   const upd = async (field, value) => {
@@ -448,8 +453,9 @@ export default function ClientDetail() {
     ? ['overview','tasks','diagnosis','proposal','notes','comments','emails']
     : isOnboarding
     ? ['overview','tasks','onboarding','notes','emails']
-    : ['home','package','tasks','deliverables','website','suggestions','reporting','notes','emails','comments']
+    : ['home','content','deliverables','website','email','system','reporting','tasks','notes','comments']
 
+  const TAB_LABELS = { home:'Client Home', content:'Content Hub', deliverables:'Deliverables', website:'Website Board', email:'Email Marketing', system:'System Building', reporting:'Reporting', tasks:'Tasks', notes:'Notes', comments:'Comments', overview:'Overview', diagnosis:'Diagnosis', proposal:'Proposal', onboarding:'Onboarding', emails:'Emails', suggestions:'Suggestions', package:'Package' }
   const ONBOARDING_ITEMS = ['Contract signed','Invoice sent','Invoice paid','Welcome email sent','Client board created','Brand questionnaire sent','Access requested','Assets received','Kickoff call booked','Strategy call scheduled','Client folder created','Team briefed']
   const doneOnboarding = (client.onboarding_done||'').split(',').map(s=>s.trim()).filter(Boolean)
   const toggleOnboarding = (item) => {
@@ -496,7 +502,7 @@ export default function ClientDetail() {
       <div style={{ display:'flex', borderBottom:'.5px solid var(--border)', padding:'0 1.75rem', background:'var(--warm)', overflowX:'auto' }}>
         {TABS.map(t=>(
           <button key={t} onClick={()=>setTab(t)} style={{ padding:'.55rem 1rem', fontSize:'.68rem', letterSpacing:'.1em', textTransform:'uppercase', fontWeight:500, background:'none', border:'none', borderBottom:`2px solid ${tab===t?'var(--gold)':'transparent'}`, color:tab===t?'var(--dark)':'var(--muted)', cursor:'pointer', whiteSpace:'nowrap' }}>
-            {t.charAt(0).toUpperCase()+t.slice(1)}
+            {TAB_LABELS[t]||t.charAt(0).toUpperCase()+t.slice(1)}
           </button>
         ))}
       </div>
@@ -966,95 +972,151 @@ export default function ClientDetail() {
         })()}
 
         {/* ── HOME (Active Client Hub) ── */}
-        {tab==='home'&&(
-          <div>
-            <div style={{ display:'flex', gap:'1.25rem', marginBottom:'1.5rem', alignItems:'flex-start' }}>
-              {/* Health score ring */}
-              {(()=>{
-                const done = tasks.filter(t=>t.status==='Done')
-                const total = tasks.length
-                let score = 0
-                if (total > 0) score += Math.round((done.length/total)*40)
-                if (client.current_focus) score += 20
-                if (client.next_milestone) score += 20
-                if (client.mrr) score += 20
-                score = Math.min(score, 100)
-                const scoreColor = score>=70?'#4A8A60':score>=40?'var(--amber)':'var(--red)'
-                const circumference = 2 * Math.PI * 40
-                return (
-                  <div style={{ background:'var(--warm)', border:'.5px solid var(--border)', borderRadius:'16px', padding:'1.5rem 1.25rem', textAlign:'center', flexShrink:0, width:170 }}>
-                    <div style={{ position:'relative', width:100, height:100, margin:'0 auto .875rem' }}>
-                      <svg viewBox="0 0 100 100" style={{ transform:'rotate(-90deg)', width:'100%', height:'100%' }}>
-                        <circle cx="50" cy="50" r="40" fill="none" stroke="var(--border)" strokeWidth="8"/>
-                        <circle cx="50" cy="50" r="40" fill="none" stroke={scoreColor} strokeWidth="8" strokeDasharray={`${(score/100)*circumference} ${circumference}`} strokeLinecap="round"/>
-                      </svg>
-                      <div style={{ position:'absolute', top:'50%', left:'50%', transform:'translate(-50%,-50%)', textAlign:'center' }}>
-                        <div style={{ fontSize:'1.6rem', fontWeight:700, color:'var(--dark)', lineHeight:1 }}>{score}</div>
-                        <div style={{ fontSize:'.5rem', color:'var(--muted)', letterSpacing:'.12em', textTransform:'uppercase' }}>health</div>
-                      </div>
+        {tab==='home'&&(()=>{
+          const done = tasks.filter(t=>t.status==='Done')
+          const total = tasks.length
+          let score = 0
+          if (total > 0) score += Math.round((done.length/total)*40)
+          if (client.current_focus) score += 20
+          if (client.next_milestone) score += 20
+          if (client.mrr) score += 20
+          score = Math.min(score, 100)
+          const scoreColor = score>=70?'#4A8A60':score>=40?'var(--amber)':'var(--red)'
+          const circumference = 2 * Math.PI * 40
+          const suggs = (() => { try { return JSON.parse(client.suggestions||'[]') } catch(e) { return [] } })()
+          const pendingSuggs = suggs.filter(s=>s.status==='Pending'||!s.status)
+          return (
+            <div>
+              {/* Row 1: Health | Suggestions | Email Stats */}
+              <div style={{ display:'grid', gridTemplateColumns:'190px 1fr 1fr', gap:'1rem', marginBottom:'1rem', alignItems:'stretch' }}>
+                {/* Health Score */}
+                <div style={{ background:'var(--warm)', border:'.5px solid var(--border)', borderRadius:'16px', padding:'1.5rem 1.25rem', textAlign:'center', display:'flex', flexDirection:'column', alignItems:'center' }}>
+                  <div style={{ fontSize:'.52rem', letterSpacing:'.18em', textTransform:'uppercase', color:'var(--muted)', fontWeight:600, marginBottom:'1rem' }}>Health Score</div>
+                  <div style={{ position:'relative', width:100, height:100, margin:'0 auto .875rem' }}>
+                    <svg viewBox="0 0 100 100" style={{ transform:'rotate(-90deg)', width:'100%', height:'100%' }}>
+                      <circle cx="50" cy="50" r="40" fill="none" stroke="var(--border)" strokeWidth="8"/>
+                      <circle cx="50" cy="50" r="40" fill="none" stroke={scoreColor} strokeWidth="8" strokeDasharray={`${(score/100)*circumference} ${circumference}`} strokeLinecap="round"/>
+                    </svg>
+                    <div style={{ position:'absolute', top:'50%', left:'50%', transform:'translate(-50%,-50%)', textAlign:'center' }}>
+                      <div style={{ fontSize:'1.6rem', fontWeight:700, color:'var(--dark)', lineHeight:1 }}>{score}</div>
+                      <div style={{ fontSize:'.5rem', color:'var(--muted)', letterSpacing:'.12em', textTransform:'uppercase' }}>health</div>
                     </div>
-                    <div style={{ fontSize:'.75rem', color:scoreColor, fontWeight:600 }}>{score>=70?'Thriving':score>=40?'On track':'Needs attention'}</div>
                   </div>
-                )
-              })()}
-              {/* Task stats + focus */}
-              <div style={{ flex:1, display:'flex', flexDirection:'column', gap:'.875rem' }}>
-                <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'.625rem' }}>
-                  {[
-                    { label:'Today', count:tasks.filter(t=>t.status==='Today').length, color:'#2E6080', filter:'To Do Now' },
-                    { label:'Up Next', count:tasks.filter(t=>t.status==='Now'||t.status==='Soon').length, color:'var(--mist-blue)', filter:'Up Next' },
-                    { label:'Waiting', count:tasks.filter(t=>t.status==='Waiting').length, color:'var(--warm-greige)', filter:'Waiting' },
-                    { label:'Done', count:tasks.filter(t=>t.status==='Done').length, color:'var(--teal)', filter:'Done' },
-                  ].map(s=>(
-                    <div key={s.label} onClick={()=>{setTaskFilter(s.filter);setTab('tasks')}} style={{ background:'var(--warm)', border:'.5px solid var(--border)', borderRadius:'12px', padding:'.875rem .5rem', cursor:'pointer', textAlign:'center', transition:'all .12s' }}
-                      onMouseEnter={e=>{e.currentTarget.style.borderColor='var(--mist-blue)';e.currentTarget.style.background='var(--pale-cloud)'}}
-                      onMouseLeave={e=>{e.currentTarget.style.borderColor='var(--border)';e.currentTarget.style.background='var(--warm)'}}>
-                      <div style={{ fontSize:'1.5rem', fontWeight:700, color:s.color, lineHeight:1.1, marginBottom:'.2rem' }}>{s.count}</div>
-                      <div style={{ fontSize:'.62rem', color:'var(--muted)', letterSpacing:'.07em', textTransform:'uppercase' }}>{s.label}</div>
-                    </div>
-                  ))}
+                  <div style={{ fontSize:'.75rem', color:scoreColor, fontWeight:600 }}>{score>=70?'Thriving':score>=40?'On track':'Needs attention'}</div>
                 </div>
-                <div className="card" style={{ flex:1 }}>
-                  <div className="card-head"><div className="card-title">This Month's Focus</div></div>
-                  <div className="card-body">
-                    <textarea className="form-textarea" style={{ minHeight:56, fontSize:'.9rem' }} placeholder="What's the main focus this month?" value={client.current_focus||''} onChange={e=>setClient(c=>({...c,current_focus:e.target.value}))} onBlur={e=>upd('current_focus',e.target.value)}/>
+
+                {/* Suggestions Preview */}
+                <div style={{ background:'var(--warm)', border:'.5px solid var(--border)', borderRadius:'16px', padding:'1.25rem' }}>
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'.875rem' }}>
+                    <div style={{ fontSize:'.52rem', letterSpacing:'.18em', textTransform:'uppercase', color:'var(--muted)', fontWeight:600 }}>Suggestions</div>
+                    <button onClick={()=>setTab('suggestions')} style={{ fontSize:'.68rem', color:'var(--mist-blue)', background:'none', border:'none', cursor:'pointer', padding:0, fontFamily:'inherit' }}>View all →</button>
+                  </div>
+                  {pendingSuggs.length===0 ? (
+                    <div style={{ padding:'1.5rem 0', textAlign:'center', color:'var(--muted)', fontSize:'.82rem' }}>No pending suggestions</div>
+                  ) : (
+                    <div style={{ display:'flex', flexDirection:'column', gap:'.5rem' }}>
+                      {pendingSuggs.slice(0,3).map((s,i)=>{
+                        const priCol = s.priority==='High'?'var(--amber)':s.priority==='Medium'?'var(--mist-blue)':'var(--muted)'
+                        return (
+                          <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:'.5rem', padding:'.5rem .625rem', background:'#fff', borderRadius:'8px', border:'.5px solid var(--border)' }}>
+                            <span style={{ fontSize:'.55rem', padding:'.18rem .4rem', borderRadius:'4px', background:`${priCol}18`, color:priCol, fontWeight:600, flexShrink:0, marginTop:'.12rem' }}>{s.priority}</span>
+                            <span style={{ fontSize:'.82rem', color:'var(--dark)', lineHeight:1.4 }}>{s.title}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                  <button onClick={()=>{setShowAddSuggestion(true);setTab('suggestions')}} style={{ marginTop:'.75rem', width:'100%', background:'none', border:'1.5px dashed var(--border)', borderRadius:'8px', padding:'.4rem', fontSize:'.72rem', color:'var(--muted)', cursor:'pointer', fontFamily:'inherit' }}>+ Add suggestion</button>
+                </div>
+
+                {/* Email Stats */}
+                <div style={{ background:'var(--warm)', border:'.5px solid var(--border)', borderRadius:'16px', padding:'1.25rem' }}>
+                  <div style={{ fontSize:'.52rem', letterSpacing:'.18em', textTransform:'uppercase', color:'var(--muted)', fontWeight:600, marginBottom:'.875rem' }}>Email Activity</div>
+                  <div style={{ display:'flex', gap:'1.5rem', marginBottom:'1rem' }}>
+                    <div>
+                      <div style={{ fontFamily:'Cormorant Garamond,Georgia,serif', fontSize:'2.2rem', color:'var(--dark)', lineHeight:1 }}>{emails.length}</div>
+                      <div style={{ fontSize:'.68rem', color:'var(--muted)', marginTop:'.2rem' }}>Emails logged</div>
+                    </div>
+                    <div>
+                      <div style={{ fontFamily:'Cormorant Garamond,Georgia,serif', fontSize:'2.2rem', color:'var(--mist-blue)', lineHeight:1 }}>{client.report_email_opens||'—'}{client.report_email_opens?'%':''}</div>
+                      <div style={{ fontSize:'.68rem', color:'var(--muted)', marginTop:'.2rem' }}>Open rate</div>
+                    </div>
+                  </div>
+                  <button onClick={()=>setTab('email')} style={{ display:'block', fontSize:'.72rem', color:'var(--mist-blue)', background:'none', border:'.5px solid var(--mist-blue)', borderRadius:'6px', cursor:'pointer', padding:'.35rem .75rem', fontFamily:'inherit' }}>View email board →</button>
+                </div>
+              </div>
+
+              {/* Row 2: Current Focus | This Month | Quick Access */}
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'1rem', marginBottom:'1rem' }}>
+                {/* Current Focus */}
+                <div style={{ background:'var(--warm)', border:'.5px solid var(--border)', borderRadius:'16px', padding:'1.25rem' }}>
+                  <div style={{ fontSize:'.52rem', letterSpacing:'.18em', textTransform:'uppercase', color:'var(--muted)', fontWeight:600, marginBottom:'.75rem' }}>Current Focus</div>
+                  <textarea
+                    style={{ border:'none', background:'transparent', padding:0, minHeight:90, fontSize:'.9rem', fontFamily:'inherit', color:'var(--dark)', resize:'none', lineHeight:1.65, width:'100%', outline:'none' }}
+                    placeholder="What's the main focus this month?"
+                    value={client.current_focus||''}
+                    onChange={e=>setClient(c=>({...c,current_focus:e.target.value}))}
+                    onBlur={e=>upd('current_focus',e.target.value)}
+                  />
+                </div>
+
+                {/* This Month at a Glance */}
+                <div style={{ background:'var(--warm)', border:'.5px solid var(--border)', borderRadius:'16px', padding:'1.25rem' }}>
+                  <div style={{ fontSize:'.52rem', letterSpacing:'.18em', textTransform:'uppercase', color:'var(--muted)', fontWeight:600, marginBottom:'.75rem' }}>This Month</div>
+                  <div style={{ display:'flex', flexDirection:'column', gap:'.1rem' }}>
+                    {[
+                      { label:'Tasks for today', count:tasks.filter(t=>t.status==='Today').length, color:'#2E6080', filter:'To Do Now' },
+                      { label:'Up next', count:tasks.filter(t=>t.status==='Now'||t.status==='Soon').length, color:'var(--mist-blue)', filter:'Up Next' },
+                      { label:'Waiting on client', count:tasks.filter(t=>t.status==='Waiting').length, color:'var(--amber)', filter:'Waiting' },
+                      { label:'Completed', count:tasks.filter(t=>t.status==='Done').length, color:'var(--teal)', filter:'Done' },
+                      { label:'Total tasks', count:tasks.length, color:'var(--muted)', filter:'To Do Now' },
+                    ].map(item=>(
+                      <div key={item.label} onClick={()=>{setTaskFilter(item.filter);setTab('tasks')}} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'.4rem 0', borderBottom:'.5px solid var(--border)', cursor:'pointer' }}
+                        onMouseEnter={e=>e.currentTarget.style.background='rgba(0,0,0,.015)'}
+                        onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                        <span style={{ fontSize:'.82rem', color:'var(--muted)' }}>{item.label}</span>
+                        <span style={{ fontSize:'1rem', fontWeight:700, color:item.color }}>{item.count}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Quick Access */}
+                <div style={{ background:'var(--warm)', border:'.5px solid var(--border)', borderRadius:'16px', padding:'1.25rem' }}>
+                  <div style={{ fontSize:'.52rem', letterSpacing:'.18em', textTransform:'uppercase', color:'var(--muted)', fontWeight:600, marginBottom:'.75rem' }}>Quick Access</div>
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'.5rem' }}>
+                    {[
+                      { key:'content', label:'Content Hub', icon:'◈' },
+                      { key:'deliverables', label:'Deliverables', icon:'▦' },
+                      { key:'website', label:'Website Board', icon:'→' },
+                      { key:'email', label:'Email Marketing', icon:'✉' },
+                      { key:'system', label:'System Building', icon:'◎' },
+                      { key:'reporting', label:'Reporting', icon:'◌' },
+                    ].map(l=>(
+                      <div key={l.key} onClick={()=>setTab(l.key)} style={{ display:'flex', alignItems:'center', gap:'.4rem', padding:'.5rem .625rem', background:'#fff', border:'.5px solid var(--border)', borderRadius:'8px', cursor:'pointer', transition:'all .12s' }}
+                        onMouseEnter={e=>{e.currentTarget.style.borderColor='var(--mist-blue)'}}
+                        onMouseLeave={e=>{e.currentTarget.style.borderColor='var(--border)'}}>
+                        <span style={{ color:'var(--mist-blue)', fontSize:'.85rem', lineHeight:1 }}>{l.icon}</span>
+                        <span style={{ fontSize:'.72rem', fontWeight:500, color:'var(--dark)', lineHeight:1.3 }}>{l.label}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
-            </div>
 
-            {/* Monthly rhythm */}
-            <div style={{ background:'var(--dark)', borderRadius:'12px', padding:'.875rem 1.25rem', marginBottom:'1.5rem', display:'flex', alignItems:'center', gap:'1rem', overflowX:'auto' }}>
-              <div style={{ fontSize:'.58rem', letterSpacing:'.18em', textTransform:'uppercase', color:'rgba(255,255,255,.35)', fontWeight:600, whiteSpace:'nowrap', flexShrink:0 }}>Monthly Rhythm</div>
-              {['Plan','Build','Review','Approve','Deliver','Report','Improve'].map((phase,i)=>(
-                <React.Fragment key={phase}>
-                  {i>0&&<div style={{ color:'rgba(255,255,255,.2)', fontSize:'.8rem', flexShrink:0 }}>→</div>}
-                  <div style={{ background:'rgba(255,255,255,.07)', borderRadius:'8px', padding:'.4rem .875rem', fontSize:'.75rem', color:'rgba(255,255,255,.7)', fontWeight:500, whiteSpace:'nowrap', flexShrink:0 }}>{phase}</div>
-                </React.Fragment>
-              ))}
+              {/* Monthly rhythm banner */}
+              <div style={{ background:'var(--dark)', borderRadius:'12px', padding:'.875rem 1.25rem', display:'flex', alignItems:'center', gap:'1rem', overflowX:'auto' }}>
+                <div style={{ fontSize:'.58rem', letterSpacing:'.18em', textTransform:'uppercase', color:'rgba(255,255,255,.35)', fontWeight:600, whiteSpace:'nowrap', flexShrink:0 }}>Monthly Rhythm</div>
+                {['Plan','Build','Review','Approve','Deliver','Report','Improve'].map((phase,i)=>(
+                  <React.Fragment key={phase}>
+                    {i>0&&<div style={{ color:'rgba(255,255,255,.2)', fontSize:'.8rem', flexShrink:0 }}>→</div>}
+                    <div style={{ background:'rgba(255,255,255,.07)', borderRadius:'8px', padding:'.4rem .875rem', fontSize:'.75rem', color:'rgba(255,255,255,.7)', fontWeight:500, whiteSpace:'nowrap', flexShrink:0 }}>{phase}</div>
+                  </React.Fragment>
+                ))}
+              </div>
             </div>
-
-            {/* Quick links */}
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'.875rem' }}>
-              {[
-                { key:'package', label:'Package Overview', icon:'◎', desc:'Stage, inclusions, and investment details' },
-                { key:'deliverables', label:'Monthly Deliverables', icon:'▦', desc:'What gets delivered each month' },
-                { key:'tasks', label:'Tasks', icon:'✓', desc:'All active tasks and next actions' },
-                { key:'suggestions', label:'Suggestions', icon:'◈', desc:'Growth ideas and recommendations' },
-                { key:'website', label:'Website Board', icon:'→', desc:'Website tasks and update requests' },
-                { key:'reporting', label:'Reporting', icon:'◌', desc:'Monthly metrics and insights' },
-              ].map(l=>(
-                <div key={l.key} onClick={()=>setTab(l.key)} style={{ background:'var(--warm)', border:'.5px solid var(--border)', borderRadius:'14px', padding:'1.125rem', cursor:'pointer', transition:'all .12s' }}
-                  onMouseEnter={e=>{e.currentTarget.style.borderColor='var(--mist-blue)';e.currentTarget.style.background='var(--pale-cloud)'}}
-                  onMouseLeave={e=>{e.currentTarget.style.borderColor='var(--border)';e.currentTarget.style.background='var(--warm)'}}>
-                  <div style={{ fontSize:'1.2rem', marginBottom:'.5rem', color:'var(--soft-slate)' }}>{l.icon}</div>
-                  <div style={{ fontSize:'.9rem', fontWeight:700, color:'var(--dark)', marginBottom:'.2rem' }}>{l.label}</div>
-                  <div style={{ fontSize:'.78rem', color:'var(--muted)', lineHeight:1.5 }}>{l.desc}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+          )
+        })()}
 
         {/* ── PACKAGE ── */}
         {tab==='package'&&(
@@ -1102,6 +1164,113 @@ export default function ClientDetail() {
             </div>
           </div>
         )}
+
+        {/* ── CONTENT HUB ── */}
+        {tab==='content'&&(()=>{
+          const contentItems = (() => { try { return JSON.parse(client.content_items||'[]') } catch(e) { return [] } })()
+          const saveContent = arr => upd('content_items', JSON.stringify(arr))
+          const CONTENT_COLS = ['Ideas','In Progress','In Review','Approved','Published']
+          const TYPE_COLORS = { 'Carousel':'#9FBBD0', 'Reel':'#E8B4C8', 'Post':'#A8C5A0', 'Story':'#F4C97B', 'Email':'#B4A8D8', 'Video':'#F4A87C' }
+          const PLATFORMS = ['IG','FB','LinkedIn','TikTok','Email']
+          const moveItem = (item, dir) => {
+            const ci = CONTENT_COLS.indexOf(item.status)
+            const ni = ci + dir
+            if (ni < 0 || ni >= CONTENT_COLS.length) return
+            saveContent(contentItems.map(i => i.id===item.id ? {...i, status:CONTENT_COLS[ni]} : i))
+          }
+          const COL_COLORS = ['var(--muted)','var(--mist-blue)','var(--amber)','#4A8A60','var(--teal)']
+          return (
+            <div>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'1.25rem' }}>
+                <div>
+                  <div style={{ fontFamily:'Cormorant Garamond,Georgia,serif', fontSize:'1.6rem', fontWeight:400 }}>Content Hub</div>
+                  <div style={{ fontSize:'.85rem', color:'var(--muted)' }}>Track content ideas, drafts, and published pieces for {client.name?.split(' ')[0]}.</div>
+                </div>
+                <button className="btn btn-primary" onClick={()=>setShowAddContent(v=>!v)}>+ Add Content</button>
+              </div>
+
+              {showAddContent&&(
+                <div className="card" style={{ marginBottom:'1.25rem', border:'1.5px solid var(--mist-blue)' }}>
+                  <div className="card-head"><div className="card-title">New Content Item</div></div>
+                  <div className="card-body" style={{ display:'flex', flexDirection:'column', gap:'.75rem' }}>
+                    <input className="form-input" placeholder="Content title or idea…" value={newContentForm.title} onChange={e=>setNewContentForm(f=>({...f,title:e.target.value}))}/>
+                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'.75rem' }}>
+                      <div>
+                        <div style={{ fontSize:'.6rem', letterSpacing:'.12em', textTransform:'uppercase', color:'var(--muted)', fontWeight:600, marginBottom:'.4rem' }}>Type</div>
+                        <select className="form-select" value={newContentForm.type} onChange={e=>setNewContentForm(f=>({...f,type:e.target.value}))}>
+                          {Object.keys(TYPE_COLORS).map(t=><option key={t}>{t}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <div style={{ fontSize:'.6rem', letterSpacing:'.12em', textTransform:'uppercase', color:'var(--muted)', fontWeight:600, marginBottom:'.4rem' }}>Start in</div>
+                        <select className="form-select" value={newContentForm.status} onChange={e=>setNewContentForm(f=>({...f,status:e.target.value}))}>
+                          {CONTENT_COLS.map(c=><option key={c}>{c}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <div style={{ fontSize:'.6rem', letterSpacing:'.12em', textTransform:'uppercase', color:'var(--muted)', fontWeight:600, marginBottom:'.4rem' }}>Due Date</div>
+                        <input type="date" className="form-input" value={newContentForm.due_date} onChange={e=>setNewContentForm(f=>({...f,due_date:e.target.value}))}/>
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize:'.6rem', letterSpacing:'.12em', textTransform:'uppercase', color:'var(--muted)', fontWeight:600, marginBottom:'.4rem' }}>Platforms</div>
+                      <div style={{ display:'flex', gap:'.4rem', flexWrap:'wrap' }}>
+                        {PLATFORMS.map(p=>{
+                          const active=(newContentForm.platforms||[]).includes(p)
+                          return <button key={p} onClick={()=>setNewContentForm(f=>({...f,platforms:active?f.platforms.filter(x=>x!==p):[...f.platforms,p]}))} style={{ padding:'.2rem .55rem', borderRadius:'4px', fontSize:'.72rem', cursor:'pointer', fontFamily:'inherit', border:`1.5px solid ${active?'var(--mist-blue)':'var(--border)'}`, background:active?'var(--pale-cloud)':'transparent', color:active?'#2E6080':'var(--muted)' }}>{p}</button>
+                        })}
+                      </div>
+                    </div>
+                    <div style={{ display:'flex', justifyContent:'flex-end', gap:'.5rem' }}>
+                      <button className="btn btn-ghost btn-sm" onClick={()=>{setShowAddContent(false);setNewContentForm({title:'',type:'Post',platforms:[],status:'Ideas',due_date:''})}}>Cancel</button>
+                      <button className="btn btn-primary btn-sm" onClick={()=>{if(!newContentForm.title.trim())return;saveContent([...contentItems,{...newContentForm,id:Date.now()}]);setShowAddContent(false);setNewContentForm({title:'',type:'Post',platforms:[],status:'Ideas',due_date:''})}}>Add</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:'.875rem' }}>
+                {CONTENT_COLS.map((col,ci)=>{
+                  const colItems = contentItems.filter(i=>i.status===col)
+                  return (
+                    <div key={col}>
+                      <div style={{ display:'flex', alignItems:'center', gap:'.5rem', marginBottom:'.75rem' }}>
+                        <div style={{ width:8, height:8, borderRadius:'50%', background:COL_COLORS[ci], flexShrink:0 }}/>
+                        <span style={{ fontSize:'.62rem', letterSpacing:'.12em', textTransform:'uppercase', color:'var(--muted)', fontWeight:600 }}>{col}</span>
+                        <span style={{ fontSize:'.65rem', color:'var(--muted)', marginLeft:'auto' }}>{colItems.length}</span>
+                      </div>
+                      <div style={{ display:'flex', flexDirection:'column', gap:'.5rem' }}>
+                        {colItems.map(item=>(
+                          <div key={item.id} style={{ background:'var(--warm)', border:'.5px solid var(--border)', borderRadius:'10px', overflow:'hidden' }}>
+                            <div style={{ height:4, background:TYPE_COLORS[item.type]||'var(--border)' }}/>
+                            <div style={{ padding:'.75rem .75rem .5rem' }}>
+                              <div style={{ fontSize:'.85rem', fontWeight:600, color:'var(--dark)', lineHeight:1.35, marginBottom:'.4rem' }}>{item.title}</div>
+                              <div style={{ display:'flex', alignItems:'center', gap:'.3rem', flexWrap:'wrap', marginBottom:'.35rem' }}>
+                                <span style={{ fontSize:'.6rem', padding:'.15rem .4rem', borderRadius:'4px', background:`${TYPE_COLORS[item.type]||'#ccc'}30`, color:TYPE_COLORS[item.type]||'var(--muted)', fontWeight:600 }}>{item.type}</span>
+                                {(item.platforms||[]).map(p=>(
+                                  <span key={p} style={{ fontSize:'.6rem', padding:'.15rem .35rem', borderRadius:'4px', background:'var(--bg)', border:'.5px solid var(--border)', color:'var(--muted)' }}>{p}</span>
+                                ))}
+                              </div>
+                              {item.due_date&&<div style={{ fontSize:'.68rem', color:'var(--muted)' }}>📅 {new Date(item.due_date+'T00:00').toLocaleDateString('en-NZ',{day:'numeric',month:'short'})}</div>}
+                            </div>
+                            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'.35rem .5rem', borderTop:'.5px solid var(--border)' }}>
+                              <button onClick={()=>moveItem(item,-1)} disabled={ci===0} style={{ background:'none', border:'none', cursor:ci===0?'default':'pointer', color:ci===0?'var(--border)':'var(--muted)', fontSize:'.72rem', padding:'.1rem .3rem', fontFamily:'inherit' }}>← Back</button>
+                              <button onClick={()=>saveContent(contentItems.filter(i=>i.id!==item.id))} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--muted)', fontSize:'.65rem', padding:'.1rem .3rem', fontFamily:'inherit', opacity:.6 }}>✕</button>
+                              <button onClick={()=>moveItem(item,1)} disabled={ci===CONTENT_COLS.length-1} style={{ background:'none', border:'none', cursor:ci===CONTENT_COLS.length-1?'default':'pointer', color:ci===CONTENT_COLS.length-1?'var(--border)':'var(--mist-blue)', fontSize:'.72rem', padding:'.1rem .3rem', fontFamily:'inherit', fontWeight:600 }}>Move →</button>
+                            </div>
+                          </div>
+                        ))}
+                        {colItems.length===0&&(
+                          <div style={{ textAlign:'center', padding:'1.25rem .5rem', color:'var(--border)', fontSize:'.75rem', border:'1.5px dashed var(--border)', borderRadius:'8px' }}>Empty</div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })()}
 
         {/* ── DELIVERABLES ── */}
         {tab==='deliverables'&&(()=>{
@@ -1175,50 +1344,100 @@ export default function ClientDetail() {
 
         {/* ── WEBSITE BOARD ── */}
         {tab==='website'&&(()=>{
-          const webTasks = tasks.filter(t=>(t.name||'').toLowerCase().includes('website')||(t.name||'').toLowerCase().includes('[web]'))
+          const WEB_SUBTABS = ['Tasks','Pages','Copy Updates']
           const cols = [
             { label:'Not Started', statuses:['Now','Soon'], color:'var(--warm-greige)' },
             { label:'In Progress', statuses:['Today'], color:'var(--mist-blue)' },
             { label:'In Review', statuses:['Waiting'], color:'var(--amber)' },
             { label:'Done', statuses:['Done'], color:'var(--teal)' },
           ]
+          const webTasks = tasks.filter(t=>(t.name||'').toLowerCase().includes('website')||(t.name||'').toLowerCase().includes('[web]'))
+          const pageTasks = tasks.filter(t=>(t.name||'').toLowerCase().includes('[page]')||(t.name||'').toLowerCase().includes(' page '))
+          const copyTasks = tasks.filter(t=>(t.name||'').toLowerCase().includes('[copy]')||(t.name||'').toLowerCase().includes('copy update'))
+
+          const renderTable = (taskList, emptyMsg) => taskList.length===0 ? (
+            <div style={{ textAlign:'center', padding:'3rem', color:'var(--muted)', fontSize:'.9rem', background:'var(--warm)', borderRadius:'14px', border:'1.5px dashed var(--border)' }}>{emptyMsg}</div>
+          ) : (
+            <div className="card">
+              <table style={{ width:'100%', borderCollapse:'collapse' }}>
+                <thead>
+                  <tr style={{ borderBottom:'.5px solid var(--border)' }}>
+                    {['Task','Status','Due Date',''].map(h=>(
+                      <th key={h} style={{ padding:'.625rem 1rem', textAlign:'left', fontSize:'.58rem', letterSpacing:'.15em', textTransform:'uppercase', color:'var(--muted)', fontWeight:500 }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {taskList.map(task=>{
+                    const due = dueBadge(task.due_date)
+                    const col = cols.find(c=>c.statuses.includes(task.status))||cols[0]
+                    return (
+                      <tr key={task.id} onClick={()=>{setSelectedTask(task.id);setTab('tasks')}} style={{ borderBottom:'.5px solid var(--border)', cursor:'pointer' }}
+                        onMouseEnter={e=>e.currentTarget.style.background='var(--bg)'}
+                        onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                        <td style={{ padding:'.625rem 1rem' }}>
+                          <div style={{ fontWeight:500, fontSize:'.85rem', color:'var(--dark)' }}>{(task.name||'').replace(/\[(web(site)?|page|copy)\]/gi,'').trim()}</div>
+                          {task.discussion_point&&<div style={{ fontSize:'.72rem', color:'var(--muted)', marginTop:'.1rem' }}>{task.discussion_point}</div>}
+                        </td>
+                        <td style={{ padding:'.625rem 1rem' }}>
+                          <span style={{ fontSize:'.65rem', padding:'.2rem .5rem', borderRadius:'999px', background:`${col.color}22`, color:col.color, fontWeight:600, border:`.5px solid ${col.color}44` }}>{col.label}</span>
+                        </td>
+                        <td style={{ padding:'.625rem 1rem', fontSize:'.78rem', color:due?due.color:'var(--muted)', fontWeight:due?.bold?600:400 }}>{due?due.text:'—'}</td>
+                        <td style={{ padding:'.625rem 1rem', color:'var(--muted)', fontSize:'1rem' }}>›</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )
+
           return (
             <div>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'1.25rem' }}>
                 <div>
                   <div style={{ fontFamily:'Cormorant Garamond,Georgia,serif', fontSize:'1.6rem', fontWeight:400 }}>Website Board</div>
-                  <div style={{ fontSize:'.85rem', color:'var(--muted)' }}>Track website tasks, updates, and requests for {client.name?.split(' ')[0]}.</div>
+                  <div style={{ fontSize:'.85rem', color:'var(--muted)' }}>Track website tasks, pages, and copy updates for {client.name?.split(' ')[0]}.</div>
                 </div>
                 <button className="btn btn-primary" onClick={async()=>{const t=await createTask({client_id:id,name:'[Website] ',status:'Now'});setTasks(p=>[...p,t]);setSelectedTask(t.id);setTab('tasks')}}>+ Add Website Task</button>
               </div>
-              {webTasks.length===0&&(
-                <div style={{ textAlign:'center', padding:'3rem', color:'var(--muted)', fontSize:'.9rem', background:'var(--warm)', borderRadius:'14px', border:'1.5px dashed var(--border)', marginBottom:'1.25rem' }}>
-                  No website tasks yet. Tasks with "website" or "[web]" in the name appear here automatically.
-                </div>
-              )}
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'1rem' }}>
-                {cols.map(col=>(
-                  <div key={col.label}>
-                    <div style={{ display:'flex', alignItems:'center', gap:'.5rem', marginBottom:'.75rem' }}>
-                      <div style={{ width:8, height:8, borderRadius:'50%', background:col.color, flexShrink:0 }}/>
-                      <span style={{ fontSize:'.62rem', letterSpacing:'.12em', textTransform:'uppercase', color:'var(--muted)', fontWeight:600 }}>{col.label}</span>
-                      <span style={{ fontSize:'.65rem', color:'var(--muted)', marginLeft:'auto' }}>{webTasks.filter(t=>col.statuses.includes(t.status)).length}</span>
-                    </div>
-                    {webTasks.filter(t=>col.statuses.includes(t.status)).map(task=>(
-                      <div key={task.id} onClick={()=>{setSelectedTask(task.id);setTab('tasks')}} style={{ background:'var(--warm)', border:'.5px solid var(--border)', borderRadius:'12px', padding:'.875rem', marginBottom:'.5rem', cursor:'pointer', transition:'all .12s' }}
-                        onMouseEnter={e=>{e.currentTarget.style.borderColor='var(--mist-blue)'}}
-                        onMouseLeave={e=>{e.currentTarget.style.borderColor='var(--border)'}}>
-                        <div style={{ fontSize:'.88rem', fontWeight:600, color:'var(--dark)', lineHeight:1.4, marginBottom:'.35rem' }}>{(task.name||'').replace(/\[web(site)?\]/gi,'').trim()}</div>
-                        <div style={{ display:'flex', alignItems:'center', gap:'.4rem' }}>
-                          <span style={{ width:7, height:7, borderRadius:'50%', background:col.color, display:'inline-block', flexShrink:0 }}/>
-                          <span style={{ fontSize:'.65rem', color:'var(--muted)' }}>{task.status}</span>
-                          {task.due_date&&<span style={{ fontSize:'.65rem', color:'var(--muted)', marginLeft:'auto' }}>Due {new Date(task.due_date+'T00:00').toLocaleDateString('en-NZ',{day:'numeric',month:'short'})}</span>}
+
+              {/* Sub-tabs */}
+              <div style={{ display:'flex', gap:'.5rem', marginBottom:'1.25rem' }}>
+                {WEB_SUBTABS.map(st=>(
+                  <button key={st} onClick={()=>setWebsiteSubTab(st)} style={{ padding:'.38rem .875rem', borderRadius:'999px', fontSize:'.78rem', cursor:'pointer', fontFamily:'inherit', fontWeight:websiteSubTab===st?600:400, border:`1.5px solid ${websiteSubTab===st?'var(--mist-blue)':'var(--border)'}`, background:websiteSubTab===st?'var(--pale-cloud)':'transparent', color:websiteSubTab===st?'#2E6080':'var(--muted)', transition:'all .12s' }}>{st}</button>
+                ))}
+              </div>
+
+              {websiteSubTab==='Tasks'&&(
+                webTasks.length===0 ? (
+                  <div style={{ textAlign:'center', padding:'3rem', color:'var(--muted)', fontSize:'.9rem', background:'var(--warm)', borderRadius:'14px', border:'1.5px dashed var(--border)' }}>
+                    No website tasks yet. Tasks with "website" or "[web]" in the name appear here.
+                  </div>
+                ) : (
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'1rem' }}>
+                    {cols.map(col=>(
+                      <div key={col.label}>
+                        <div style={{ display:'flex', alignItems:'center', gap:'.5rem', marginBottom:'.75rem' }}>
+                          <div style={{ width:8, height:8, borderRadius:'50%', background:col.color, flexShrink:0 }}/>
+                          <span style={{ fontSize:'.62rem', letterSpacing:'.12em', textTransform:'uppercase', color:'var(--muted)', fontWeight:600 }}>{col.label}</span>
+                          <span style={{ fontSize:'.65rem', color:'var(--muted)', marginLeft:'auto' }}>{webTasks.filter(t=>col.statuses.includes(t.status)).length}</span>
                         </div>
+                        {webTasks.filter(t=>col.statuses.includes(t.status)).map(task=>(
+                          <div key={task.id} onClick={()=>{setSelectedTask(task.id);setTab('tasks')}} style={{ background:'var(--warm)', border:'.5px solid var(--border)', borderRadius:'12px', padding:'.875rem', marginBottom:'.5rem', cursor:'pointer', transition:'all .12s' }}
+                            onMouseEnter={e=>{e.currentTarget.style.borderColor='var(--mist-blue)'}}
+                            onMouseLeave={e=>{e.currentTarget.style.borderColor='var(--border)'}}>
+                            <div style={{ fontSize:'.88rem', fontWeight:600, color:'var(--dark)', lineHeight:1.4, marginBottom:'.35rem' }}>{(task.name||'').replace(/\[web(site)?\]/gi,'').trim()}</div>
+                            {task.due_date&&<div style={{ fontSize:'.65rem', color:'var(--muted)' }}>Due {new Date(task.due_date+'T00:00').toLocaleDateString('en-NZ',{day:'numeric',month:'short'})}</div>}
+                          </div>
+                        ))}
                       </div>
                     ))}
                   </div>
-                ))}
-              </div>
+                )
+              )}
+              {websiteSubTab==='Pages'&&renderTable(pageTasks,'No page tasks yet. Add tasks with "[page]" or "page" in the name.')}
+              {websiteSubTab==='Copy Updates'&&renderTable(copyTasks,'No copy update tasks yet. Add tasks with "[copy]" or "copy update" in the name.')}
             </div>
           )
         })()}
@@ -1294,6 +1513,161 @@ export default function ClientDetail() {
                           </div>
                         </div>
                       </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })()}
+
+        {/* ── EMAIL MARKETING ── */}
+        {tab==='email'&&(()=>{
+          const campaigns = (() => { try { return JSON.parse(client.email_campaigns||'[]') } catch(e) { return [] } })()
+          const saveCampaigns = arr => upd('email_campaigns', JSON.stringify(arr))
+          const sentCampaigns = campaigns.filter(c=>c.status==='Sent')
+          const avgOpen = sentCampaigns.filter(c=>c.opens).length > 0
+            ? Math.round(sentCampaigns.filter(c=>c.opens).reduce((s,c)=>s+(parseFloat(c.opens)||0),0)/sentCampaigns.filter(c=>c.opens).length)
+            : null
+          return (
+            <div>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'1.25rem' }}>
+                <div>
+                  <div style={{ fontFamily:'Cormorant Garamond,Georgia,serif', fontSize:'1.6rem', fontWeight:400 }}>Email Marketing</div>
+                  <div style={{ fontSize:'.85rem', color:'var(--muted)' }}>Campaigns, stats, and send history for {client.name?.split(' ')[0]}.</div>
+                </div>
+                <button className="btn btn-primary" onClick={()=>setShowAddCampaign(v=>!v)}>+ Log Campaign</button>
+              </div>
+
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'.875rem', marginBottom:'1.25rem' }}>
+                {[
+                  { label:'Total campaigns', value:campaigns.length },
+                  { label:'Campaigns sent', value:sentCampaigns.length },
+                  { label:'Avg open rate', value:avgOpen!==null?avgOpen:client.report_email_opens||'—', suffix:(avgOpen!==null||client.report_email_opens)?'%':'' },
+                  { label:'Emails logged', value:emails.length },
+                ].map(m=>(
+                  <div key={m.label} style={{ background:'var(--warm)', border:'.5px solid var(--border)', borderRadius:'14px', padding:'1.125rem' }}>
+                    <div style={{ fontSize:'.58rem', letterSpacing:'.14em', textTransform:'uppercase', color:'var(--muted)', fontWeight:600, marginBottom:'.5rem' }}>{m.label}</div>
+                    <div style={{ fontFamily:'Cormorant Garamond,Georgia,serif', fontSize:'2rem', color:'var(--dark)', lineHeight:1 }}>{m.value}{m.suffix||''}</div>
+                  </div>
+                ))}
+              </div>
+
+              {showAddCampaign&&(
+                <div className="card" style={{ marginBottom:'1.25rem', border:'1.5px solid var(--mist-blue)' }}>
+                  <div className="card-head"><div className="card-title">Log Campaign</div></div>
+                  <div className="card-body" style={{ display:'flex', flexDirection:'column', gap:'.75rem' }}>
+                    <input className="form-input" placeholder="Subject line…" value={newCampaignForm.subject} onChange={e=>setNewCampaignForm(f=>({...f,subject:e.target.value}))}/>
+                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'.75rem' }}>
+                      <div>
+                        <div style={{ fontSize:'.6rem', letterSpacing:'.12em', textTransform:'uppercase', color:'var(--muted)', fontWeight:600, marginBottom:'.4rem' }}>Date Sent</div>
+                        <input type="date" className="form-input" value={newCampaignForm.sent_date} onChange={e=>setNewCampaignForm(f=>({...f,sent_date:e.target.value}))}/>
+                      </div>
+                      <div>
+                        <div style={{ fontSize:'.6rem', letterSpacing:'.12em', textTransform:'uppercase', color:'var(--muted)', fontWeight:600, marginBottom:'.4rem' }}>Open Rate %</div>
+                        <input type="number" className="form-input" placeholder="e.g. 42" value={newCampaignForm.opens} onChange={e=>setNewCampaignForm(f=>({...f,opens:e.target.value}))}/>
+                      </div>
+                      <div>
+                        <div style={{ fontSize:'.6rem', letterSpacing:'.12em', textTransform:'uppercase', color:'var(--muted)', fontWeight:600, marginBottom:'.4rem' }}>Click Rate %</div>
+                        <input type="number" className="form-input" placeholder="e.g. 8" value={newCampaignForm.clicks} onChange={e=>setNewCampaignForm(f=>({...f,clicks:e.target.value}))}/>
+                      </div>
+                      <div>
+                        <div style={{ fontSize:'.6rem', letterSpacing:'.12em', textTransform:'uppercase', color:'var(--muted)', fontWeight:600, marginBottom:'.4rem' }}>Status</div>
+                        <select className="form-select" value={newCampaignForm.status} onChange={e=>setNewCampaignForm(f=>({...f,status:e.target.value}))}>
+                          {['Draft','Scheduled','Sent'].map(s=><option key={s}>{s}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    <div style={{ display:'flex', justifyContent:'flex-end', gap:'.5rem' }}>
+                      <button className="btn btn-ghost btn-sm" onClick={()=>{setShowAddCampaign(false);setNewCampaignForm({subject:'',sent_date:'',opens:'',clicks:'',status:'Draft'})}}>Cancel</button>
+                      <button className="btn btn-primary btn-sm" onClick={()=>{if(!newCampaignForm.subject.trim())return;saveCampaigns([...campaigns,{...newCampaignForm,id:Date.now()}]);setShowAddCampaign(false);setNewCampaignForm({subject:'',sent_date:'',opens:'',clicks:'',status:'Draft'})}}>Save</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {campaigns.length===0&&!showAddCampaign ? (
+                <div style={{ textAlign:'center', padding:'3rem', color:'var(--muted)', fontSize:'.9rem', background:'var(--warm)', borderRadius:'14px', border:'1.5px dashed var(--border)' }}>
+                  No campaigns logged yet. Click "+ Log Campaign" to track email sends.
+                </div>
+              ) : campaigns.length > 0 && (
+                <div className="card">
+                  <table style={{ width:'100%', borderCollapse:'collapse' }}>
+                    <thead>
+                      <tr style={{ borderBottom:'.5px solid var(--border)' }}>
+                        {['Subject','Date Sent','Open Rate','Click Rate','Status',''].map(h=>(
+                          <th key={h} style={{ padding:'.625rem 1rem', textAlign:'left', fontSize:'.58rem', letterSpacing:'.15em', textTransform:'uppercase', color:'var(--muted)', fontWeight:500 }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[...campaigns].reverse().map((c,i)=>(
+                        <tr key={c.id||i} style={{ borderBottom:'.5px solid var(--border)' }}>
+                          <td style={{ padding:'.625rem 1rem', fontSize:'.85rem', fontWeight:500, color:'var(--dark)' }}>{c.subject}</td>
+                          <td style={{ padding:'.625rem 1rem', fontSize:'.78rem', color:'var(--muted)' }}>{c.sent_date?new Date(c.sent_date+'T00:00').toLocaleDateString('en-NZ',{day:'numeric',month:'short',year:'numeric'}):'—'}</td>
+                          <td style={{ padding:'.625rem 1rem', fontSize:'.82rem', fontWeight:c.opens?600:400, color:c.opens?'var(--dark)':'var(--muted)' }}>{c.opens?`${c.opens}%`:'—'}</td>
+                          <td style={{ padding:'.625rem 1rem', fontSize:'.82rem', fontWeight:c.clicks?600:400, color:c.clicks?'var(--dark)':'var(--muted)' }}>{c.clicks?`${c.clicks}%`:'—'}</td>
+                          <td style={{ padding:'.625rem 1rem' }}>
+                            <span style={{ fontSize:'.65rem', padding:'.2rem .5rem', borderRadius:'999px', background:c.status==='Sent'?'rgba(74,138,96,.1)':c.status==='Scheduled'?'var(--gold-bg)':'var(--warm)', color:c.status==='Sent'?'var(--teal)':c.status==='Scheduled'?'var(--amber)':'var(--muted)', fontWeight:600 }}>{c.status}</span>
+                          </td>
+                          <td style={{ padding:'.625rem 1rem' }}>
+                            <button onClick={()=>saveCampaigns(campaigns.filter(x=>x.id!==c.id))} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--muted)', fontSize:'.68rem', padding:0 }}>Remove</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )
+        })()}
+
+        {/* ── SYSTEM BUILDING ── */}
+        {tab==='system'&&(()=>{
+          const DEFAULT_SYSTEM = [
+            { id:'funnel', label:'Funnel Setup', desc:'Lead capture pages, thank you pages, and conversion flow', icon:'◈' },
+            { id:'crm', label:'CRM Setup', desc:'Client records, pipeline stages, and automation rules', icon:'◎' },
+            { id:'email_seq', label:'Email Sequences', desc:'Welcome sequence, nurture series, and follow-up automation', icon:'✉' },
+            { id:'templates', label:'Social Templates', desc:'Branded post templates, story frames, and caption banks', icon:'▦' },
+            { id:'analytics', label:'Analytics Dashboard', desc:'Reporting setup, tracking, and performance views', icon:'◌' },
+            { id:'sops', label:'SOPs & Processes', desc:'Standard operating procedures and team workflows', icon:'→' },
+          ]
+          const systemRaw = (() => { try { return JSON.parse(client.system_items||'{}') } catch(e) { return {} } })()
+          const saveSystem = obj => upd('system_items', JSON.stringify(obj))
+          const STATUS_OPTS = ['Not Started','In Progress','Done']
+          const statusColors = { 'Not Started':'var(--muted)', 'In Progress':'var(--amber)', 'Done':'var(--teal)' }
+          const done = DEFAULT_SYSTEM.filter(i=>(systemRaw[i.id]?.status||'Not Started')==='Done').length
+          return (
+            <div>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'1.25rem' }}>
+                <div>
+                  <div style={{ fontFamily:'Cormorant Garamond,Georgia,serif', fontSize:'1.6rem', fontWeight:400 }}>System Building</div>
+                  <div style={{ fontSize:'.85rem', color:'var(--muted)' }}>{done} of {DEFAULT_SYSTEM.length} systems built for {client.name?.split(' ')[0]}.</div>
+                </div>
+                <div style={{ background:'var(--pale-cloud)', color:'#2E6080', borderRadius:'999px', padding:'.4rem 1rem', fontSize:'.82rem', fontWeight:600 }}>{done}/{DEFAULT_SYSTEM.length} done</div>
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'1rem' }}>
+                {DEFAULT_SYSTEM.map(item=>{
+                  const status = systemRaw[item.id]?.status || 'Not Started'
+                  const notes = systemRaw[item.id]?.notes || ''
+                  const sc = statusColors[status]
+                  return (
+                    <div key={item.id} style={{ background:'var(--warm)', border:`.5px solid ${status==='Done'?'rgba(74,138,96,.3)':status==='In Progress'?'rgba(229,166,49,.3)':'var(--border)'}`, borderRadius:'16px', padding:'1.25rem', transition:'border-color .15s' }}>
+                      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:'.75rem' }}>
+                        <div style={{ width:36, height:36, borderRadius:'10px', background:'var(--bg)', border:'.5px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'1rem', color:'var(--muted)', flexShrink:0 }}>{item.icon}</div>
+                        <span style={{ fontSize:'.63rem', padding:'.2rem .55rem', borderRadius:'999px', background:`${sc}18`, color:sc, fontWeight:600, border:`.5px solid ${sc}44` }}>{status}</span>
+                      </div>
+                      <div style={{ fontWeight:700, fontSize:'.9rem', color:'var(--dark)', marginBottom:'.3rem' }}>{item.label}</div>
+                      <div style={{ fontSize:'.78rem', color:'var(--muted)', lineHeight:1.5, marginBottom:'.875rem' }}>{item.desc}</div>
+                      <div style={{ display:'flex', gap:'.3rem', marginBottom:'.625rem' }}>
+                        {STATUS_OPTS.map(s=>{
+                          const active = status===s
+                          const c = statusColors[s]
+                          return <button key={s} onClick={()=>saveSystem({...systemRaw,[item.id]:{...systemRaw[item.id],status:s}})} style={{ flex:1, padding:'.25rem', borderRadius:'6px', fontSize:'.62rem', cursor:'pointer', fontFamily:'inherit', border:`1.5px solid ${active?c:'var(--border)'}`, background:active?`${c}18`:'transparent', color:active?c:'var(--muted)', fontWeight:active?600:400, transition:'all .1s', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{s}</button>
+                        })}
+                      </div>
+                      <textarea className="form-textarea" style={{ minHeight:48, fontSize:'.75rem', resize:'none' }} placeholder="Notes…" value={notes} onChange={e=>saveSystem({...systemRaw,[item.id]:{...systemRaw[item.id],notes:e.target.value}})}/>
                     </div>
                   )
                 })}
