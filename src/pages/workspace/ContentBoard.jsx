@@ -2,22 +2,35 @@ import React, { useState } from 'react'
 
 // ── Status config ──────────────────────────────────────────────────────────────
 const STATUS_CFG = {
-  Draft:       { bg: '#E8ECF0', color: '#6B7485',  label: 'Draft' },
-  Edited:      { bg: '#ECD6CE', color: '#7A4F38',  label: 'Edited' },
-  'Needs Review': { bg: '#ECD6CE', color: '#7A4F38', label: 'Needs Review' },
-  Approved:    { bg: '#D4E0CE', color: '#3A5A36',  label: 'Approved' },
-  Posted:      { bg: '#BABEAF', color: '#2A3A26',  label: 'Posted' },
+  Draft:          { bg: '#E8ECF0', color: '#6B7485',  label: 'Draft' },
+  Edited:         { bg: '#ECD6CE', color: '#7A4F38',  label: 'Edited' },
+  'Needs Review': { bg: '#ECD6CE', color: '#7A4F38',  label: 'Needs Review' },
+  Approved:       { bg: '#D4E0CE', color: '#3A5A36',  label: 'Approved' },
+  Posted:         { bg: '#BABEAF', color: '#2A3A26',  label: 'Posted' },
 }
 
-const STATUS_EDGE = {
-  Draft:       '#B7C1CB',
-  Edited:      '#ECD6CE',
-  'Needs Review': '#ECD6CE',
-  Approved:    '#BABEAF',
-  Posted:      '#BABEAF',
+// Calendar card backgrounds — soft per CLAUDE.md palette (ink text on all)
+const CARD_BG = {
+  Draft:          '#EEF1F4',  // soft bluegrey
+  Edited:         '#F5EAE7',  // soft blush
+  'Needs Review': '#F5EAE7',  // soft blush
+  Approved:       '#E6EBE2',  // soft sage
+  Posted:         '#E2E7DE',  // soft sage (slightly deeper — done state)
+}
+const CARD_BORDER = {
+  Draft:          '#C8D2DA',
+  Edited:         '#DFBFB5',
+  'Needs Review': '#DFBFB5',
+  Approved:       '#BFC9BB',
+  Posted:         '#B5C1B0',
 }
 
-// ── Placeholder posts ──────────────────────────────────────────────────────────
+// ── Drag-and-drop helper ───────────────────────────────────────────────────────
+function isMediaFile(file) {
+  return file?.type?.startsWith('image/') || file?.type?.startsWith('video/')
+}
+
+// ── Seed posts ─────────────────────────────────────────────────────────────────
 const SEED_POSTS = [
   {
     id: 1,
@@ -35,6 +48,8 @@ const SEED_POSTS = [
     notes: 'Client wants to review thumbnail before we post. Book in a quick approval call.',
     publishDate: new Date(2026, 5, 12),
     platform: 'Instagram',
+    attachedFile: null,
+    attachedObjectUrl: null,
   },
   {
     id: 2,
@@ -54,6 +69,8 @@ const SEED_POSTS = [
     notes: '',
     publishDate: new Date(2026, 5, 14),
     platform: 'Instagram, Facebook',
+    attachedFile: null,
+    attachedObjectUrl: null,
   },
   {
     id: 3,
@@ -71,6 +88,8 @@ const SEED_POSTS = [
     notes: 'High performer — repurpose this format for the next BTS post.',
     publishDate: new Date(2026, 5, 10),
     platform: 'Instagram, TikTok',
+    attachedFile: null,
+    attachedObjectUrl: null,
   },
   {
     id: 4,
@@ -87,6 +106,8 @@ const SEED_POSTS = [
     notes: 'Waiting on client input. Follow up Thursday.',
     publishDate: new Date(2026, 5, 20),
     platform: 'Email',
+    attachedFile: null,
+    attachedObjectUrl: null,
   },
 ]
 
@@ -117,7 +138,11 @@ function sameDay(a, b) {
          a.getFullYear() === b.getFullYear()
 }
 
-// ── Card components ────────────────────────────────────────────────────────────
+function dateKey(d) {
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
+}
+
+// ── Board-only card components (unchanged) ────────────────────────────────────
 function StatusBanner({ post }) {
   const cfg = STATUS_CFG[post.status] || STATUS_CFG.Draft
   return (
@@ -130,20 +155,32 @@ function StatusBanner({ post }) {
   )
 }
 
-function MediaCard({ post, large }) {
-  const h = large ? 'aspect-video' : 'aspect-video'
+function MediaCard({ post }) {
+  // Shows the attached image/video when available; falls back to gradient placeholder
+  if (post.attachedObjectUrl) {
+    const isVid = post.attachedFile?.type?.startsWith('video/')
+    return (
+      <div className="rounded-md overflow-hidden aspect-video relative flex items-center justify-center"
+        style={{ background: `linear-gradient(135deg, ${post.gradientFrom}, ${post.gradientTo})` }}>
+        {isVid ? (
+          <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.3)' }}>
+            <span className="text-white text-base ml-0.5">▶</span>
+          </div>
+        ) : (
+          <img src={post.attachedObjectUrl} alt={post.title} className="absolute inset-0 w-full h-full object-cover" />
+        )}
+        <div className="absolute bottom-0 left-0 right-0 px-2.5 py-1.5" style={{ background: 'rgba(50,54,66,0.35)' }}>
+          <span className="text-[0.58rem] text-white font-medium">{isVid ? 'Video' : 'Image'} · {post.platform}</span>
+        </div>
+      </div>
+    )
+  }
   return (
-    <div className={`rounded-md overflow-hidden ${h} flex items-center justify-center relative`}
+    <div className="rounded-md overflow-hidden aspect-video flex items-center justify-center relative"
       style={{ background: `linear-gradient(135deg, ${post.gradientFrom} 0%, ${post.gradientTo} 100%)` }}>
-      {post.isVideo ? (
-        <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.3)' }}>
-          <span className="text-white text-base ml-0.5">▶</span>
-        </div>
-      ) : (
-        <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.3)' }}>
-          <span className="text-lg">🖼</span>
-        </div>
-      )}
+      <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.3)' }}>
+        <span className="text-lg">{post.isVideo ? '▶' : '🖼'}</span>
+      </div>
       <div className="absolute bottom-0 left-0 right-0 px-2.5 py-1.5" style={{ background: 'rgba(50,54,66,0.35)' }}>
         <span className="text-[0.58rem] text-white font-medium">{post.isVideo ? 'Video' : 'Image'} · {post.platform}</span>
       </div>
@@ -170,7 +207,6 @@ function CaptionCard({ caption, full }) {
   const [expanded, setExpanded] = useState(false)
   const limit  = 140
   const isLong = caption.length > limit
-
   return (
     <div className="rounded-md border border-border bg-white p-3">
       <div className="text-[0.55rem] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Caption</div>
@@ -226,12 +262,11 @@ function StickyNote({ note }) {
   )
 }
 
-// ── Board column ───────────────────────────────────────────────────────────────
+// ── Board column (unchanged) ───────────────────────────────────────────────────
 function BoardColumn({ post, onSelect }) {
   const cardCount = 2 + post.files.length + (post.comments.length ? 1 : 0) + (post.notes ? 1 : 0)
   return (
     <div className="w-[272px] flex-shrink-0 flex flex-col gap-2.5">
-      {/* Column header */}
       <div className="flex items-start justify-between gap-2">
         <button onClick={() => onSelect(post)} className="text-left min-w-0 group">
           <div className="text-sm font-semibold text-ink group-hover:text-navy transition-colors leading-tight">{post.title}</div>
@@ -241,14 +276,12 @@ function BoardColumn({ post, onSelect }) {
         </button>
         <button className="text-muted-foreground hover:text-ink text-base leading-none flex-shrink-0 mt-0.5 px-1">···</button>
       </div>
-
       <StatusBanner post={post} />
       <MediaCard post={post} />
       {post.files.map((f, i) => <FileCard key={i} file={f} />)}
       <CaptionCard caption={post.caption} />
       {post.comments.length > 0 && <CommentThread comments={post.comments} compact />}
       <StickyNote note={post.notes} />
-
       <button className="text-[0.65rem] text-muted-foreground hover:text-ink border border-dashed border-border rounded-md py-2 transition-colors w-full">
         + Add card
       </button>
@@ -259,6 +292,9 @@ function BoardColumn({ post, onSelect }) {
 // ── Detail panel ───────────────────────────────────────────────────────────────
 function DetailPanel({ post, onClose }) {
   if (!post) return null
+  const hasVideo = post.attachedObjectUrl && post.attachedFile?.type?.startsWith('video/')
+  const hasImage = post.attachedObjectUrl && !hasVideo
+
   return (
     <div className="fixed inset-0 z-50 flex" style={{ background: 'rgba(50,54,66,0.4)' }} onClick={onClose}>
       <div
@@ -266,34 +302,36 @@ function DetailPanel({ post, onClose }) {
         style={{ boxShadow: '-4px 0 24px rgba(50,54,66,0.12)' }}
         onClick={e => e.stopPropagation()}
       >
-        {/* Panel header */}
         <div className="sticky top-0 bg-white border-b border-border px-6 py-4 flex items-center justify-between z-10">
           <div>
             <h2 className="font-display text-xl text-ink leading-tight">{post.title}</h2>
-            <div className="text-xs text-muted-foreground mt-0.5">
-              {post.platform} · {fmtDate(post.publishDate)}
-            </div>
+            <div className="text-xs text-muted-foreground mt-0.5">{post.platform} · {fmtDate(post.publishDate)}</div>
           </div>
           <button
             onClick={onClose}
             className="w-8 h-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-ink hover:bg-cream transition-colors text-sm"
-          >
-            ✕
-          </button>
+          >✕</button>
         </div>
 
         <div className="p-6 space-y-4">
           <StatusBanner post={post} />
-          <MediaCard post={post} large />
+
+          {/* Media: real player/image when available, gradient placeholder otherwise */}
+          {hasVideo && (
+            <video controls src={post.attachedObjectUrl} className="w-full rounded-md max-h-64 bg-black" />
+          )}
+          {hasImage && (
+            <img src={post.attachedObjectUrl} alt={post.title} className="w-full rounded-md object-cover" style={{ maxHeight: 260 }} />
+          )}
+          {!post.attachedObjectUrl && <MediaCard post={post} />}
+
           {post.files.map((f, i) => <FileCard key={i} file={f} />)}
 
-          {/* Full caption */}
           <div className="rounded-md border border-border bg-white p-4">
             <div className="text-[0.55rem] font-semibold uppercase tracking-wider text-muted-foreground mb-3">Caption</div>
             <div className="text-sm text-ink leading-relaxed whitespace-pre-line">{post.caption}</div>
           </div>
 
-          {/* Comments */}
           {post.comments.length > 0 && (
             <div className="rounded-md border border-border bg-white p-4">
               <div className="text-[0.55rem] font-semibold uppercase tracking-wider text-muted-foreground mb-3">
@@ -306,10 +344,8 @@ function DetailPanel({ post, onClose }) {
                       {c.author.replace('@', '').slice(0, 1).toUpperCase()}
                     </div>
                     <div>
-                      <div>
-                        <span className="text-xs font-semibold text-navy">{c.author}</span>
-                        <span className="text-xs text-muted-foreground ml-2">{c.time}</span>
-                      </div>
+                      <span className="text-xs font-semibold text-navy">{c.author}</span>
+                      <span className="text-xs text-muted-foreground ml-2">{c.time}</span>
                       <div className="text-sm text-ink mt-0.5 leading-relaxed">{c.text}</div>
                     </div>
                   </div>
@@ -329,24 +365,62 @@ function DetailPanel({ post, onClose }) {
   )
 }
 
-// ── Calendar: chip ─────────────────────────────────────────────────────────────
-function PostChip({ post, onSelect, withThumb }) {
-  const edge = STATUS_EDGE[post.status] || '#B7C1CB'
+// ── Calendar post card (new: status background + drag-and-drop) ────────────────
+function PostChip({ post, onSelect, onFileDrop }) {
+  const [dragOver, setDragOver] = useState(false)
+
+  const bg     = CARD_BG[post.status]     || '#EEF1F4'
+  const border = CARD_BORDER[post.status] || '#C8D2DA'
+
+  const onDragEnter = e => { e.preventDefault(); e.stopPropagation(); setDragOver(true) }
+  const onDragOver  = e => { e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = 'copy' }
+  const onDragLeave = e => { e.stopPropagation(); if (!e.currentTarget.contains(e.relatedTarget)) setDragOver(false) }
+  const onDrop      = e => {
+    e.preventDefault(); e.stopPropagation(); setDragOver(false)
+    const file = e.dataTransfer.files?.[0]
+    if (isMediaFile(file)) onFileDrop?.(file)
+  }
+
+  const isAttachedImage = post.attachedObjectUrl && !post.attachedFile?.type?.startsWith('video/')
+
   return (
     <button
       onClick={() => onSelect(post)}
-      className="w-full text-left rounded overflow-hidden hover:opacity-80 transition-opacity"
-      style={{ borderLeft: `2.5px solid ${edge}`, background: 'white', boxShadow: '0 1px 2px rgba(50,54,66,0.07)' }}
+      onDragEnter={onDragEnter}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+      className="w-full text-left rounded-md overflow-hidden transition-all"
+      style={{
+        background: bg,
+        border: `1.5px solid ${dragOver ? '#424B63' : border}`,
+        boxShadow: dragOver
+          ? '0 0 0 2px rgba(66,75,99,0.25), 0 2px 8px rgba(66,75,99,0.10)'
+          : '0 1px 2px rgba(50,54,66,0.06)',
+      }}
     >
-      {withThumb && (
-        <div className="h-10 flex items-center justify-center"
-          style={{ background: `linear-gradient(135deg, ${post.gradientFrom} 0%, ${post.gradientTo} 100%)` }}>
-          <span className="text-sm opacity-70">{post.isVideo ? '▶' : '🖼'}</span>
-        </div>
-      )}
-      <div className={withThumb ? 'px-1.5 py-1' : 'px-1.5 py-0.5'}>
-        <div className="text-[0.6rem] font-medium text-ink truncate">{post.title}</div>
-        {withThumb && <div className="text-[0.55rem] text-muted-foreground truncate">{post.platform}</div>}
+      {/* Thumbnail strip */}
+      <div
+        className="relative overflow-hidden flex items-center justify-center"
+        style={{ height: 32, background: `linear-gradient(135deg, ${post.gradientFrom}, ${post.gradientTo})` }}
+      >
+        {isAttachedImage ? (
+          <img src={post.attachedObjectUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
+        ) : (
+          <span className="text-xs opacity-50 relative z-10">{post.isVideo ? '▶' : '🖼'}</span>
+        )}
+        {/* Drop-here overlay */}
+        {dragOver && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center"
+            style={{ background: 'rgba(66,75,99,0.62)' }}>
+            <span className="text-white text-[0.58rem] font-semibold tracking-wide">+ Attach</span>
+          </div>
+        )}
+      </div>
+      {/* Title + platform */}
+      <div className="px-1.5 py-1.5">
+        <div className="text-[0.6rem] font-medium text-ink truncate leading-tight">{post.title}</div>
+        <div className="text-[0.55rem] text-muted-foreground truncate mt-0.5">{post.platform}</div>
       </div>
     </button>
   )
@@ -356,17 +430,17 @@ function PostChip({ post, onSelect, withThumb }) {
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const MONTHS   = ['January','February','March','April','May','June','July','August','September','October','November','December']
 
-function CalendarMonth({ posts, onSelect, month, year, onPrev, onNext }) {
-  const firstDow  = (new Date(year, month, 1).getDay() + 6) % 7
-  const daysInMo  = new Date(year, month + 1, 0).getDate()
-  const today     = new Date()
+function CalendarMonth({ posts, onSelect, month, year, onPrev, onNext, onAttachFile, onCreatePost }) {
+  const firstDow   = (new Date(year, month, 1).getDay() + 6) % 7
+  const daysInMo   = new Date(year, month + 1, 0).getDate()
+  const today      = new Date()
+  const [dragOverKey, setDragOverKey] = useState(null)
 
   const cells = [
     ...Array(firstDow).fill(null),
     ...Array.from({ length: daysInMo }, (_, i) => new Date(year, month, i + 1)),
   ]
   while (cells.length % 7) cells.push(null)
-
   const weeks = []
   for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7))
 
@@ -388,21 +462,61 @@ function CalendarMonth({ posts, onSelect, month, year, onPrev, onNext }) {
         {weeks.map((week, wi) => (
           <div key={wi} className="grid grid-cols-7 border-b border-border last:border-b-0">
             {week.map((date, di) => {
-              const dayPosts = date ? posts.filter(p => sameDay(new Date(p.publishDate), date)) : []
-              const isToday  = date && sameDay(date, today)
+              const dayPosts    = date ? posts.filter(p => sameDay(new Date(p.publishDate), date)) : []
+              const isToday     = date && sameDay(date, today)
+              const key         = date ? dateKey(date) : null
+              const isDropTarget = key && dragOverKey === key && dayPosts.length === 0
+
               return (
                 <div
                   key={di}
-                  className={`min-h-[88px] p-1.5 border-r border-border last:border-r-0 ${!date ? 'bg-cream/40' : ''} ${isToday ? 'bg-navy/[0.04]' : ''}`}
+                  className={`min-h-[88px] p-1.5 border-r border-border last:border-r-0 relative transition-colors ${
+                    !date ? 'bg-cream/40' : isToday ? 'bg-navy/[0.04]' : ''
+                  }`}
+                  onDragEnter={e => {
+                    if (!date || dayPosts.length > 0) return
+                    e.preventDefault(); setDragOverKey(key)
+                  }}
+                  onDragOver={e => {
+                    if (!date) return
+                    e.preventDefault()
+                    e.dataTransfer.dropEffect = dayPosts.length === 0 ? 'copy' : 'none'
+                  }}
+                  onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget)) setDragOverKey(null) }}
+                  onDrop={e => {
+                    e.preventDefault(); setDragOverKey(null)
+                    if (date && dayPosts.length === 0) {
+                      const file = e.dataTransfer.files?.[0]
+                      if (isMediaFile(file)) onCreatePost(date, file)
+                    }
+                  }}
                 >
                   {date && (
                     <>
-                      <div className={`text-[0.65rem] font-medium mb-1 w-5 h-5 flex items-center justify-center rounded-full ${isToday ? 'bg-navy text-white' : 'text-muted-foreground'}`}>
+                      <div className={`text-[0.65rem] font-medium mb-1 w-5 h-5 flex items-center justify-center rounded-full ${
+                        isToday ? 'bg-navy text-white' : 'text-muted-foreground'
+                      }`}>
                         {date.getDate()}
                       </div>
                       <div className="space-y-1">
-                        {dayPosts.map(p => <PostChip key={p.id} post={p} onSelect={onSelect} />)}
+                        {dayPosts.map(p => (
+                          <PostChip
+                            key={p.id}
+                            post={p}
+                            onSelect={onSelect}
+                            onFileDrop={file => onAttachFile(p.id, file)}
+                          />
+                        ))}
                       </div>
+                      {/* Empty-cell drop target indicator */}
+                      {isDropTarget && (
+                        <div
+                          className="absolute inset-x-1 bottom-1 rounded-md border-2 border-dashed border-navy/40 flex items-center justify-center pointer-events-none"
+                          style={{ top: 28, background: 'rgba(66,75,99,0.06)' }}
+                        >
+                          <span className="text-[0.58rem] text-navy/60 font-medium">+ Drop to create</span>
+                        </div>
+                      )}
                     </>
                   )}
                 </div>
@@ -416,14 +530,15 @@ function CalendarMonth({ posts, onSelect, month, year, onPrev, onNext }) {
 }
 
 // ── Calendar: week ─────────────────────────────────────────────────────────────
-function CalendarWeek({ posts, onSelect, weekStart, onPrev, onNext }) {
+function CalendarWeek({ posts, onSelect, weekStart, onPrev, onNext, onAttachFile, onCreatePost }) {
   const today = new Date()
+  const [dragOverKey, setDragOverKey] = useState(null)
   const days  = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(weekStart)
     d.setDate(weekStart.getDate() + i)
     return d
   })
-  const weekEnd = days[6]
+  const weekEnd    = days[6]
   const rangeLabel = `${weekStart.toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })} – ${weekEnd.toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' })}`
 
   return (
@@ -436,10 +551,32 @@ function CalendarWeek({ posts, onSelect, weekStart, onPrev, onNext }) {
       <div className="card overflow-hidden">
         <div className="grid grid-cols-7">
           {days.map((day, i) => {
-            const dayPosts = posts.filter(p => sameDay(new Date(p.publishDate), day))
-            const isToday  = sameDay(day, today)
+            const dayPosts     = posts.filter(p => sameDay(new Date(p.publishDate), day))
+            const isToday      = sameDay(day, today)
+            const key          = dateKey(day)
+            const isDropTarget = dragOverKey === key && dayPosts.length === 0
+
             return (
-              <div key={i} className={`border-r border-border last:border-r-0 flex flex-col ${isToday ? 'bg-navy/[0.03]' : ''}`}>
+              <div
+                key={i}
+                className={`border-r border-border last:border-r-0 flex flex-col relative ${isToday ? 'bg-navy/[0.03]' : ''}`}
+                onDragEnter={e => {
+                  if (dayPosts.length > 0) return
+                  e.preventDefault(); setDragOverKey(key)
+                }}
+                onDragOver={e => {
+                  e.preventDefault()
+                  e.dataTransfer.dropEffect = dayPosts.length === 0 ? 'copy' : 'none'
+                }}
+                onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget)) setDragOverKey(null) }}
+                onDrop={e => {
+                  e.preventDefault(); setDragOverKey(null)
+                  if (dayPosts.length === 0) {
+                    const file = e.dataTransfer.files?.[0]
+                    if (isMediaFile(file)) onCreatePost(day, file)
+                  }
+                }}
+              >
                 <div className={`py-2.5 border-b border-border text-center flex-shrink-0 ${isToday ? 'bg-navy' : 'bg-cream/40'}`}>
                   <div className={`text-[0.55rem] font-semibold uppercase tracking-wider ${isToday ? 'text-white/70' : 'text-muted-foreground'}`}>
                     {WEEKDAYS[i]}
@@ -448,9 +585,25 @@ function CalendarWeek({ posts, onSelect, weekStart, onPrev, onNext }) {
                     {day.getDate()}
                   </div>
                 </div>
-                <div className="p-2 space-y-2 flex-1">
-                  {dayPosts.map(p => <PostChip key={p.id} post={p} onSelect={onSelect} withThumb />)}
+                <div className="p-2 space-y-2 flex-1 min-h-[120px]">
+                  {dayPosts.map(p => (
+                    <PostChip
+                      key={p.id}
+                      post={p}
+                      onSelect={onSelect}
+                      onFileDrop={file => onAttachFile(p.id, file)}
+                    />
+                  ))}
                 </div>
+                {/* Empty-cell drop target */}
+                {isDropTarget && (
+                  <div
+                    className="absolute inset-x-0 bottom-0 border-2 border-dashed border-navy/40 flex items-center justify-center pointer-events-none"
+                    style={{ top: 60, background: 'rgba(66,75,99,0.06)' }}
+                  >
+                    <span className="text-[0.6rem] text-navy/60 font-medium">+ Drop to create</span>
+                  </div>
+                )}
               </div>
             )
           })}
@@ -462,18 +615,67 @@ function CalendarWeek({ posts, onSelect, weekStart, onPrev, onNext }) {
 
 // ── Main ContentBoard ──────────────────────────────────────────────────────────
 export default function ContentBoard({ client }) {
-  const [view,     setView]     = useState('board')
-  const [calView,  setCalView]  = useState('month')
-  const [month,    setMonth]    = useState(new Date().getMonth())
-  const [year,     setYear]     = useState(new Date().getFullYear())
+  const [view,      setView]      = useState('board')
+  const [calView,   setCalView]   = useState('month')
+  const [month,     setMonth]     = useState(new Date().getMonth())
+  const [year,      setYear]      = useState(new Date().getFullYear())
   const [weekStart, setWeekStart] = useState(getMonday(new Date()))
-  const [selected, setSelected] = useState(null)
-  const [posts]                 = useState(SEED_POSTS)
+  const [selectedId, setSelectedId] = useState(null)
+  const [posts,     setPosts]     = useState(SEED_POSTS)
+
+  const selected = posts.find(p => p.id === selectedId) || null
 
   const prevMonth = () => { if (month === 0) { setMonth(11); setYear(y => y - 1) } else setMonth(m => m - 1) }
   const nextMonth = () => { if (month === 11) { setMonth(0); setYear(y => y + 1) } else setMonth(m => m + 1) }
   const prevWeek  = () => { const d = new Date(weekStart); d.setDate(d.getDate() - 7); setWeekStart(d) }
   const nextWeek  = () => { const d = new Date(weekStart); d.setDate(d.getDate() + 7); setWeekStart(d) }
+
+  // ── STORAGE PLACEHOLDER ────────────────────────────────────────────────────
+  // Both functions below use URL.createObjectURL for local preview only.
+  // When wiring to Supabase storage, replace the createObjectURL line with:
+  //
+  //   const { data } = await supabase.storage
+  //     .from('content-media')
+  //     .upload(`posts/${id}/${file.name}`, file, { upsert: true })
+  //   const objectUrl = supabase.storage
+  //     .from('content-media').getPublicUrl(data.path).data.publicUrl
+  //
+  // Then store that public URL in the posts table instead.
+  // ──────────────────────────────────────────────────────────────────────────
+
+  const attachFileToPosts = (postId, file) => {
+    const objectUrl = URL.createObjectURL(file) // ← STORAGE PLACEHOLDER (see comment above)
+    setPosts(ps => ps.map(p => p.id === postId ? {
+      ...p,
+      attachedFile: file,
+      attachedObjectUrl: objectUrl,
+      isVideo: file.type.startsWith('video/'),
+    } : p))
+  }
+
+  const createPostFromDrop = (date, file) => {
+    const objectUrl = URL.createObjectURL(file) // ← STORAGE PLACEHOLDER (see comment above)
+    const isVideo   = file.type.startsWith('video/')
+    const newPost   = {
+      id: Date.now(),
+      title: file.name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' '),
+      status: 'Draft',
+      statusNote: 'Draft',
+      isVideo,
+      gradientFrom: '#D1D8DE',
+      gradientTo: '#B7C1CB',
+      caption: '',
+      files: [],
+      comments: [],
+      notes: '',
+      publishDate: date,
+      platform: 'Instagram',
+      attachedFile: file,
+      attachedObjectUrl: objectUrl,
+    }
+    setPosts(ps => [...ps, newPost])
+    setSelectedId(newPost.id)
+  }
 
   return (
     <div>
@@ -498,13 +700,12 @@ export default function ContentBoard({ client }) {
         </div>
       </div>
 
-      {/* ── BOARD VIEW ── */}
+      {/* ── BOARD VIEW (unchanged) ── */}
       {view === 'board' && (
         <div className="flex gap-4 overflow-x-auto pb-6 -mx-6 px-6" style={{ scrollbarWidth: 'thin' }}>
           {posts.map(post => (
-            <BoardColumn key={post.id} post={post} onSelect={setSelected} />
+            <BoardColumn key={post.id} post={post} onSelect={p => setSelectedId(p.id)} />
           ))}
-          {/* Add column */}
           <div className="w-[220px] flex-shrink-0">
             <button className="w-full h-10 flex items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-border text-xs text-muted-foreground hover:text-ink hover:border-ink/30 transition-colors">
               + Add column
@@ -516,7 +717,6 @@ export default function ContentBoard({ client }) {
       {/* ── CALENDAR VIEW ── */}
       {view === 'calendar' && (
         <div>
-          {/* Month / Week sub-toggle */}
           <div className="flex gap-1 mb-5 bg-cream rounded-lg p-1 border border-border w-fit">
             {['month', 'week'].map(v => (
               <button
@@ -534,27 +734,31 @@ export default function ContentBoard({ client }) {
           {calView === 'month' && (
             <CalendarMonth
               posts={posts}
-              onSelect={setSelected}
+              onSelect={p => setSelectedId(p.id)}
               month={month}
               year={year}
               onPrev={prevMonth}
               onNext={nextMonth}
+              onAttachFile={attachFileToPosts}
+              onCreatePost={createPostFromDrop}
             />
           )}
           {calView === 'week' && (
             <CalendarWeek
               posts={posts}
-              onSelect={setSelected}
+              onSelect={p => setSelectedId(p.id)}
               weekStart={weekStart}
               onPrev={prevWeek}
               onNext={nextWeek}
+              onAttachFile={attachFileToPosts}
+              onCreatePost={createPostFromDrop}
             />
           )}
         </div>
       )}
 
       {/* ── DETAIL PANEL ── */}
-      <DetailPanel post={selected} onClose={() => setSelected(null)} />
+      <DetailPanel post={selected} onClose={() => setSelectedId(null)} />
     </div>
   )
 }
