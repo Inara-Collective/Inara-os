@@ -165,7 +165,7 @@ export default function Home() {
             ) : active.map(c => (
               <button
                 key={c.id}
-                onClick={() => navigate(`/pipeline/${c.id}`)}
+                onClick={() => navigate(`/clients/${c.id}`)}
                 className="w-full text-left flex items-center gap-3 px-5 py-3 border-b border-border last:border-b-0 hover:bg-cream/60 transition-colors bg-transparent"
               >
                 <div className="w-7 h-7 rounded-md bg-blush flex items-center justify-center text-[0.58rem] font-semibold text-ink flex-shrink-0">

@@ -114,7 +114,7 @@ export default function ClientsList() {
                 {filtered.map(c => (
                   <tr
                     key={c.id}
-                    onClick={() => navigate(`/pipeline/${c.id}`)}
+                    onClick={() => navigate(`/clients/${c.id}`)}
                     className="border-b border-border last:border-b-0 cursor-pointer hover:bg-cream/50 transition-colors"
                   >
                     {/* Client name + avatar */}
