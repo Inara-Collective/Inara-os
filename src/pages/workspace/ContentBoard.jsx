@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react'
 import {
   DndContext, DragOverlay, PointerSensor, useSensor, useSensors, closestCenter,
+  useDraggable, useDroppable, pointerWithin,
 } from '@dnd-kit/core'
 import {
   SortableContext, horizontalListSortingStrategy, useSortable, arrayMove,
@@ -854,10 +855,48 @@ function MonthMiniCard({ post, onSelect }) {
   )
 }
 
+function DraggableMonthMiniCard({ post, onSelect, isActiveDrag }) {
+  const { attributes, listeners, setNodeRef } = useDraggable({ id: post.id })
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ visibility: isActiveDrag ? 'hidden' : 'visible', touchAction: 'none', cursor: 'grab' }}
+      {...attributes}
+      {...listeners}
+    >
+      <MonthMiniCard post={post} onSelect={onSelect} />
+    </div>
+  )
+}
+
+function DroppableDayCell({ day, inMonth, isToday, children }) {
+  const { setNodeRef, isOver } = useDroppable({ id: dateKey(day), disabled: !inMonth })
+  return (
+    <div
+      ref={setNodeRef}
+      className={`flex flex-col transition-colors duration-150 ${
+        !inMonth
+          ? 'bg-cream/60'
+          : isOver
+          ? 'bg-navy/5'
+          : isToday
+          ? ''
+          : 'bg-white'
+      }`}
+      style={{
+        minHeight: 140,
+        boxShadow: isOver && inMonth ? 'inset 0 0 0 2px rgba(66,75,99,0.25)' : undefined,
+      }}
+    >
+      {children}
+    </div>
+  )
+}
+
 // ── Month week row ─────────────────────────────────────────────────────────────
 const MAX_MINI_CARDS = 3
 
-function MonthWeekRow({ weekDays, weekNum, month, posts, filterPillar, onSelect, onAddPost }) {
+function MonthWeekRow({ weekDays, weekNum, month, posts, filterPillar, onSelect, onAddPost, activeId }) {
   const today = new Date()
 
   // Date range label — only days within this month
@@ -888,8 +927,7 @@ function MonthWeekRow({ weekDays, weekNum, month, posts, filterPillar, onSelect,
           const overflow = dayPosts.length - MAX_MINI_CARDS
 
           return (
-            <div key={i} className={`flex flex-col ${!inMonth ? 'bg-cream/60' : isToday ? '' : 'bg-white'}`}
-              style={{ minHeight: 140 }}>
+            <DroppableDayCell key={i} day={day} inMonth={inMonth} isToday={isToday}>
               {/* Day header */}
               <div className={`px-2 py-2 flex items-center justify-between border-b border-border/60 flex-shrink-0 ${isToday ? 'bg-navy' : ''}`}>
                 <div>
@@ -911,7 +949,12 @@ function MonthWeekRow({ weekDays, weekNum, month, posts, filterPillar, onSelect,
               {/* Cards */}
               <div className="p-1.5 space-y-1.5 flex-1">
                 {visible.map(post => (
-                  <MonthMiniCard key={post.id} post={post} onSelect={onSelect} />
+                  <DraggableMonthMiniCard
+                    key={post.id}
+                    post={post}
+                    onSelect={onSelect}
+                    isActiveDrag={activeId === post.id}
+                  />
                 ))}
                 {overflow > 0 && (
                   <button className="text-[0.58rem] font-medium text-navy hover:underline px-0.5 block">
@@ -919,7 +962,7 @@ function MonthWeekRow({ weekDays, weekNum, month, posts, filterPillar, onSelect,
                   </button>
                 )}
               </div>
-            </div>
+            </DroppableDayCell>
           )
         })}
       </div>
@@ -928,8 +971,25 @@ function MonthWeekRow({ weekDays, weekNum, month, posts, filterPillar, onSelect,
 }
 
 // ── Month view ─────────────────────────────────────────────────────────────────
-function MonthView({ posts, onSelect, month, year, onPrev, onNext, onGoToWeek, onAddPost }) {
+function MonthView({ posts, onSelect, month, year, onPrev, onNext, onGoToWeek, onAddPost, onMovePost }) {
   const [filterPillar, setFilterPillar] = useState('')
+  const [activeId, setActiveId] = useState(null)
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
+  )
+
+  const activePost = posts.find(p => p.id === activeId) || null
+
+  function handleDragEnd({ active, over }) {
+    setActiveId(null)
+    if (!over) return
+    const [y, m, d] = over.id.split('-').map(Number)
+    const newDate = new Date(y, m, d)
+    const post = posts.find(p => p.id === active.id)
+    if (!post || sameDay(new Date(post.publishDate), newDate)) return
+    onMovePost(post.id, newDate)
+  }
 
   // Build full Mon–Sun weeks that cover every day of the month
   const firstDay    = new Date(year, month, 1)
@@ -946,6 +1006,13 @@ function MonthView({ posts, onSelect, month, year, onPrev, onNext, onGoToWeek, o
   }
 
   return (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={pointerWithin}
+      onDragStart={({ active }) => setActiveId(active.id)}
+      onDragEnd={handleDragEnd}
+      onDragCancel={() => setActiveId(null)}
+    >
     <div>
       {/* Header */}
       <div className="flex items-start justify-between mb-5">
@@ -983,6 +1050,7 @@ function MonthView({ posts, onSelect, month, year, onPrev, onNext, onGoToWeek, o
             filterPillar={filterPillar}
             onSelect={onSelect}
             onAddPost={onAddPost}
+            activeId={activeId}
           />
         ))}
       </div>
@@ -992,7 +1060,24 @@ function MonthView({ posts, onSelect, month, year, onPrev, onNext, onGoToWeek, o
           View full week calendar →
         </button>
       </div>
+
+      <DragOverlay dropAnimation={{ duration: 200, easing: 'ease' }}>
+        {activePost && (
+          <div style={{
+            width: 120,
+            opacity: 0.82,
+            transform: 'rotate(1.5deg) scale(1.04)',
+            boxShadow: '0 8px 24px rgba(50,54,66,0.20), 0 2px 6px rgba(50,54,66,0.12)',
+            borderRadius: 6,
+            cursor: 'grabbing',
+            pointerEvents: 'none',
+          }}>
+            <MonthMiniCard post={activePost} onSelect={() => {}} />
+          </div>
+        )}
+      </DragOverlay>
     </div>
+    </DndContext>
   )
 }
 
@@ -1419,6 +1504,7 @@ export default function ContentBoard({ client }) {
           onPrev={prevMonth} onNext={nextMonth}
           onGoToWeek={() => setView('week')}
           onAddPost={addEmptyPost}
+          onMovePost={movePost}
         />
       )}
 
