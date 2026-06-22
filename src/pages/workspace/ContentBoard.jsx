@@ -74,6 +74,26 @@ const CONTENT_TYPES = ['Post','Reel','Carousel','Text Post','Story','Email','Blo
 const ALL_STATUSES  = ['Idea Only','Draft','To Review','Being Reviewed','Needs Changes','Approved','Scheduled','Posted']
 const PILLARS       = ['Brand Story','Authority','Education','Behind the Scenes','Social Proof']
 
+// Platforms that get per-platform caption fields
+const CAPTION_PLATFORMS = ['Instagram','Facebook','LinkedIn','LinkedIn Repost','TikTok']
+
+const PLATFORM_META = {
+  Instagram:          { bg: '#FCF0F7', color: '#C13584' },
+  Facebook:           { bg: '#EEF5FF', color: '#1877F2' },
+  LinkedIn:           { bg: '#E8F0F9', color: '#0A66C2' },
+  'LinkedIn Repost':  { bg: '#EBF0F8', color: '#0A54A1' },
+  TikTok:             { bg: '#F0F0F2', color: '#323642' },
+  Blog:               { bg: '#F4F4F4', color: '#5F6368' },
+  Email:              { bg: '#F4F4F4', color: '#5F6368' },
+}
+const PLATFORM_META_DEFAULT = { bg: '#F4F4F4', color: '#5F6368' }
+
+const APPROVAL_STATUS_META = {
+  'Pending':           { bg: '#E8ECF0', color: '#6B7485' },
+  'Approved':          { bg: '#DCEBDD', color: '#2E6B33' },
+  'Changes Requested': { bg: '#F6E6C8', color: '#7A4F00' },
+}
+
 function isMediaFile(f) {
   return f?.type?.startsWith('image/') || f?.type?.startsWith('video/')
 }
@@ -162,10 +182,19 @@ const SEED_POSTS = [
     status: 'To Review', pillar: 'Behind the Scenes', contentType: 'Carousel',
     platforms: ['Instagram', 'LinkedIn'],
     isVideo: false, gradientFrom: '#C8D8E8', gradientTo: '#B0C4D8',
-    caption: 'We don\'t guess. Here\'s how we build a content strategy from scratch.',
+    concept: 'Show the audience what actually goes into building a content strategy. Demystify the process and position Inara as strategic, not just creative. The goal is trust — clients should feel confident we know what we\'re doing.',
+    caption: "We don't guess. Here's how we build a content strategy from scratch.",
+    platformCaptions: {
+      Instagram: "We don't guess. Here's how we build a content strategy from scratch. 🎯\n\nEvery client gets a bespoke strategy — not a template. Swipe to see our 5-step process. #contentstrategy #socialmedia #smallbusiness",
+      LinkedIn: "At Inara, we believe great content starts with a great strategy — not the other way around.\n\nHere's the exact process we use with every client to build content that actually moves the needle. No guesswork, no templates.",
+    },
     files: [], comments: [
       { author: '@Tanya H', text: 'Love this — can we add the client onboarding step?', time: '2 days ago' },
     ], notes: 'Pending Maxine review.',
+    approvers: [
+      { id: 1, name: 'Maxine', status: 'Approved', comments: [{ text: 'Love the direction — approved from my end!', time: '1 day ago' }] },
+      { id: 2, name: 'Tanya H.', status: 'Pending', comments: [] },
+    ],
     publishDate: new Date(2026, 5, 19), scheduleTime: '2:00 PM',
     owner: 'Tanya H.', updatedAgo: '2 days ago',
     attachedFile: null, attachedObjectUrl: null,
@@ -596,80 +625,279 @@ function BoardView({ posts, onSelect }) {
 }
 
 // ── Detail panel ───────────────────────────────────────────────────────────────
-function DetailPanel({ post, onClose, onStatusChange }) {
+function ApproverCard({ approver, onUpdateStatus, onSubmitComment }) {
+  const [comment, setComment] = useState('')
+  const meta = APPROVAL_STATUS_META[approver.status] || APPROVAL_STATUS_META.Pending
+  return (
+    <div className="rounded-lg p-3.5 space-y-2.5" style={{ background: '#FAFAF9', border: '1px solid #EDE9E5' }}>
+      {/* Header row */}
+      <div className="flex items-center gap-2.5">
+        <AvatarInitial name={approver.name} size={7} />
+        <span className="text-sm font-semibold text-ink flex-1 leading-none">{approver.name}</span>
+        <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[0.6rem] font-semibold"
+          style={{ background: meta.bg, color: meta.color }}>{approver.status}</span>
+      </div>
+      {/* Previous approver comments */}
+      {(approver.comments || []).map((c, i) => (
+        <div key={i} className="ml-9 text-xs text-ink leading-relaxed bg-white rounded-md px-3 py-2 border border-border/60">
+          "{c.text}" <span className="text-muted-foreground text-[0.6rem] ml-1">{c.time}</span>
+        </div>
+      ))}
+      {/* Action buttons */}
+      <div className="flex items-center gap-2 ml-9 flex-wrap">
+        {approver.status !== 'Approved' && (
+          <button
+            onClick={() => onUpdateStatus('Approved')}
+            className="text-[0.65rem] font-semibold px-2.5 py-1 rounded-full transition-colors"
+            style={{ background: '#DCEBDD', color: '#2E6B33' }}>
+            ✓ Approve
+          </button>
+        )}
+        {approver.status !== 'Changes Requested' && (
+          <button
+            onClick={() => onUpdateStatus('Changes Requested')}
+            className="text-[0.65rem] font-medium px-2.5 py-1 rounded-full transition-colors"
+            style={{ background: '#F6E6C8', color: '#7A4F00' }}>
+            Request changes
+          </button>
+        )}
+        {approver.status !== 'Pending' && (
+          <button
+            onClick={() => onUpdateStatus('Pending')}
+            className="text-[0.65rem] font-medium px-2.5 py-1 rounded-full transition-colors"
+            style={{ background: '#E8ECF0', color: '#6B7485' }}>
+            Reset
+          </button>
+        )}
+      </div>
+      {/* Comment input */}
+      <div className="flex items-center gap-2 ml-9">
+        <input
+          value={comment}
+          onChange={e => setComment(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); onSubmitComment(comment); setComment('') } }}
+          className="flex-1 text-xs border border-border rounded-md px-2.5 py-1.5 text-ink placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-navy bg-white"
+          placeholder="Add a comment…"
+        />
+        <button
+          onClick={() => { onSubmitComment(comment); setComment('') }}
+          className="text-[0.65rem] font-medium text-navy hover:underline px-1">
+          Send
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function DetailPanel({ post, onClose, onStatusChange, onUpdatePost }) {
+  const [showAddApprover, setShowAddApprover] = useState(false)
+  const [newApproverName, setNewApproverName] = useState('')
+
   if (!post) return null
+  const progress = PROGRESS_MAP[post.status] || 0
   const hasVideo = post.attachedObjectUrl && post.attachedFile?.type?.startsWith('video/')
   const hasImage = post.attachedObjectUrl && !hasVideo
-  const tag = STATUS_TAG[post.status] || STATUS_TAG['Draft']
-  const progress = PROGRESS_MAP[post.status] || 0
+  const platforms = post.platforms || []
+  const approvers = post.approvers || []
+  const captionPlatforms = platforms.filter(p => CAPTION_PLATFORMS.includes(p))
+
+  function patchApprover(approverId, patch) {
+    onUpdatePost(post.id, {
+      approvers: approvers.map(a => a.id === approverId ? { ...a, ...patch } : a),
+    })
+  }
+  function handleApproverStatus(approverId, status) {
+    patchApprover(approverId, { status })
+  }
+  function handleApproverComment(approverId, text) {
+    if (!text.trim()) return
+    patchApprover(approverId, {
+      comments: [...((approvers.find(a => a.id === approverId)?.comments) || []), { text, time: 'Just now' }],
+    })
+  }
+  function addApprover() {
+    if (!newApproverName.trim()) return
+    onUpdatePost(post.id, {
+      approvers: [...approvers, { id: Date.now(), name: newApproverName.trim(), status: 'Pending', comments: [] }],
+    })
+    setNewApproverName('')
+    setShowAddApprover(false)
+  }
 
   return (
-    <div className="fixed inset-0 z-50 flex" style={{ background: 'rgba(50,54,66,0.4)' }} onClick={onClose}>
-      <div className="ml-auto h-full w-full max-w-2xl bg-white overflow-y-auto" style={{ boxShadow: '-4px 0 24px rgba(50,54,66,0.12)' }} onClick={e => e.stopPropagation()}>
-        <div className="sticky top-0 bg-white border-b border-border px-6 py-4 flex items-center justify-between z-10">
-          <div>
-            <h2 className="font-display text-xl text-ink leading-tight">{post.title}</h2>
-            <div className="text-xs text-muted-foreground mt-0.5">{(post.platforms||[]).join(', ')} · {fmtDate(post.publishDate)}</div>
+    <div className="fixed inset-0 z-50 flex" style={{ background: 'rgba(50,54,66,0.38)' }} onClick={onClose}>
+      <div
+        className="ml-auto h-full w-full max-w-2xl bg-white overflow-y-auto flex flex-col"
+        style={{ boxShadow: '-4px 0 32px rgba(50,54,66,0.14)' }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* ── Sticky header ── */}
+        <div className="sticky top-0 bg-white border-b border-border px-6 py-4 z-10 flex-shrink-0">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <h2 className="font-display text-xl text-ink leading-tight">{post.title}</h2>
+              {/* Platforms */}
+              <div className="flex items-center flex-wrap gap-1.5 mt-2">
+                {platforms.map(p => {
+                  const m = PLATFORM_META[p] || PLATFORM_META_DEFAULT
+                  return (
+                    <span key={p} className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[0.65rem] font-semibold"
+                      style={{ background: m.bg, color: m.color }}>{p}</span>
+                  )
+                })}
+                <span className="text-[0.65rem] text-muted-foreground">{fmtDate(post.publishDate)}</span>
+              </div>
+            </div>
+            <button onClick={onClose}
+              className="w-8 h-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-ink hover:bg-cream transition-colors text-sm flex-shrink-0">
+              ✕
+            </button>
           </div>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-ink hover:bg-cream transition-colors text-sm">✕</button>
         </div>
 
-        <div className="p-6 space-y-4">
-          <div className="flex items-center gap-3">
-            <StatusPill status={post.status} />
+        {/* ── Scrollable body ── */}
+        <div className="p-6 space-y-5 flex-1">
+
+          {/* Status + type + pillar row */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <label className="text-[0.55rem] font-semibold uppercase tracking-wider text-muted-foreground sr-only">Status</label>
+            <div className="relative">
+              <select
+                value={post.status}
+                onChange={e => onStatusChange(post.id, e.target.value)}
+                className="text-xs font-semibold rounded-full pl-3 pr-7 py-1.5 border-0 appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-navy/30"
+                style={{
+                  background: STATUS_TAG[post.status]?.bg || '#E7E2DB',
+                  color: STATUS_TAG[post.status]?.color || '#323642',
+                }}>
+                {ALL_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+              <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[0.5rem]" style={{ color: STATUS_TAG[post.status]?.color || '#323642' }}>▾</span>
+            </div>
             {post.contentType && (
-              <span className="inline-flex items-center rounded-full px-3 py-0.5 text-xs font-medium border" style={{ background: '#fff', color: '#323642', borderColor: '#A6AAB5' }}>{post.contentType}</span>
+              <span className="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium border" style={{ background: '#fff', color: '#323642', borderColor: '#A6AAB5' }}>{post.contentType}</span>
             )}
             {post.pillar && (
-              <span className="inline-flex items-center rounded-full px-3 py-0.5 text-xs font-medium" style={{ background: '#F4EFE9', color: '#5F4030' }}>{post.pillar}</span>
+              <span className="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium" style={{ background: '#F4EFE9', color: '#5F4030' }}>{post.pillar}</span>
             )}
             <span className="text-xs text-muted-foreground ml-auto">{progress}%</span>
           </div>
+
+          {/* Progress bar */}
           <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: '#E8ECF0' }}>
-            <div className="h-full rounded-full transition-all" style={{ width: `${progress}%`, background: progress === 100 ? '#BABEAF' : '#424B63' }} />
+            <div className="h-full rounded-full transition-all duration-300"
+              style={{ width: `${progress}%`, background: progress === 100 ? '#BABEAF' : '#424B63' }} />
           </div>
 
-          <div>
-            <div className="text-[0.55rem] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Change status</div>
-            <div className="flex flex-wrap gap-1.5">
-              {ALL_STATUSES.map(s => {
-                const t = STATUS_TAG[s]
-                return (
-                  <button key={s} onClick={() => onStatusChange(post.id, s)}
-                    className="rounded-full px-3 py-1 text-xs font-medium border transition-all"
-                    style={{
-                      background:  post.status === s ? t.bg  : '#fff',
-                      color:       post.status === s ? t.color : '#6B7485',
-                      borderColor: post.status === s ? t.color + '40' : '#E7E2DB',
-                      fontWeight:  post.status === s ? 600 : 400,
-                    }}>
-                    {s}
-                  </button>
-                )
-              })}
-            </div>
+          {/* Concept */}
+          <div className="rounded-md border border-border bg-white p-4">
+            <div className="text-[0.55rem] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Concept</div>
+            <textarea
+              value={post.concept || ''}
+              onChange={e => onUpdatePost(post.id, { concept: e.target.value })}
+              placeholder="What's the idea or thinking behind this content?"
+              rows={3}
+              className="w-full text-sm text-ink leading-relaxed resize-none focus:outline-none focus:ring-1 focus:ring-navy rounded-sm placeholder:text-muted-foreground/50"
+            />
           </div>
 
+          {/* Media */}
           {hasVideo && <video controls src={post.attachedObjectUrl} className="w-full rounded-md max-h-64 bg-black" />}
           {hasImage && <img src={post.attachedObjectUrl} alt={post.title} className="w-full rounded-md object-cover" style={{ maxHeight: 260 }} />}
           {!post.attachedObjectUrl && <MediaCard post={post} />}
 
-          {post.files.map((f, i) => <FileCard key={i} file={f} />)}
+          {/* Files */}
+          {(post.files || []).map((f, i) => <FileCard key={i} file={f} />)}
 
+          {/* Per-platform captions */}
+          {captionPlatforms.length > 0 && (
+            <div className="space-y-3">
+              <div className="text-[0.55rem] font-semibold uppercase tracking-wider text-muted-foreground">Captions</div>
+              {captionPlatforms.map(platform => {
+                const m = PLATFORM_META[platform] || PLATFORM_META_DEFAULT
+                return (
+                  <div key={platform} className="rounded-md border border-border bg-white p-4">
+                    <div className="flex items-center gap-2 mb-2.5">
+                      <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[0.62rem] font-semibold"
+                        style={{ background: m.bg, color: m.color }}>{platform}</span>
+                    </div>
+                    <textarea
+                      value={(post.platformCaptions || {})[platform] || ''}
+                      onChange={e => onUpdatePost(post.id, {
+                        platformCaptions: { ...(post.platformCaptions || {}), [platform]: e.target.value },
+                      })}
+                      placeholder={`Caption for ${platform}…`}
+                      rows={4}
+                      className="w-full text-sm text-ink leading-relaxed resize-none focus:outline-none focus:ring-1 focus:ring-navy rounded-sm placeholder:text-muted-foreground/50"
+                    />
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Approvals */}
           <div className="rounded-md border border-border bg-white p-4">
-            <div className="text-[0.55rem] font-semibold uppercase tracking-wider text-muted-foreground mb-3">Caption</div>
-            <div className="text-sm text-ink leading-relaxed whitespace-pre-line">{post.caption}</div>
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-[0.55rem] font-semibold uppercase tracking-wider text-muted-foreground">
+                Approvals{approvers.length > 0 ? ` (${approvers.length})` : ''}
+              </div>
+              <button onClick={() => setShowAddApprover(true)}
+                className="text-[0.65rem] font-medium text-navy hover:underline">
+                + Add approver
+              </button>
+            </div>
+
+            {approvers.length === 0 && !showAddApprover && (
+              <p className="text-xs text-muted-foreground py-1">No approvers assigned yet.</p>
+            )}
+
+            <div className="space-y-2.5">
+              {approvers.map(approver => (
+                <ApproverCard
+                  key={approver.id}
+                  approver={approver}
+                  onUpdateStatus={status => handleApproverStatus(approver.id, status)}
+                  onSubmitComment={text => handleApproverComment(approver.id, text)}
+                />
+              ))}
+            </div>
+
+            {showAddApprover && (
+              <div className="mt-3 flex items-center gap-2">
+                <input
+                  autoFocus
+                  value={newApproverName}
+                  onChange={e => setNewApproverName(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') addApprover()
+                    if (e.key === 'Escape') { setShowAddApprover(false); setNewApproverName('') }
+                  }}
+                  className="flex-1 text-sm border border-border rounded-md px-3 py-1.5 text-ink placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-navy"
+                  placeholder="Approver name…"
+                />
+                <button onClick={addApprover}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-md bg-navy text-white hover:bg-navy/90 transition-colors">
+                  Add
+                </button>
+                <button onClick={() => { setShowAddApprover(false); setNewApproverName('') }}
+                  className="text-xs text-muted-foreground hover:text-ink">
+                  Cancel
+                </button>
+              </div>
+            )}
           </div>
 
+          {/* General comments */}
           <div className="rounded-md border border-border bg-white p-4">
             <div className="text-[0.55rem] font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-              Comments{post.comments.length > 0 ? ` (${post.comments.length})` : ''}
+              Comments{post.comments?.length > 0 ? ` (${post.comments.length})` : ''}
             </div>
-            {post.comments.length > 0 && (
+            {post.comments?.length > 0 && (
               <div className="space-y-4 mb-4">
                 {post.comments.map((c, i) => (
                   <div key={i} className="flex gap-3">
-                    <AvatarInitial name={c.author.replace('@','')} size={7} />
+                    <AvatarInitial name={c.author.replace('@', '')} size={7} />
                     <div>
                       <span className="text-xs font-semibold text-navy">{c.author}</span>
                       <span className="text-xs text-muted-foreground ml-2">{c.time}</span>
@@ -679,7 +907,10 @@ function DetailPanel({ post, onClose, onStatusChange }) {
                 ))}
               </div>
             )}
-            <input className="w-full text-sm border border-border rounded-md px-3 py-2 text-ink placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-navy" placeholder="Type a comment…" />
+            <input
+              className="w-full text-sm border border-border rounded-md px-3 py-2 text-ink placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-navy"
+              placeholder="Type a comment…"
+            />
           </div>
 
           <StickyNote note={post.notes} />
@@ -1473,6 +1704,7 @@ export default function ContentBoard({ client }) {
   }
   const movePost    = (postId, newDate) => setPosts(ps => ps.map(p => p.id === postId ? { ...p, publishDate: newDate } : p))
   const updateStatus = (postId, status) => setPosts(ps => ps.map(p => p.id === postId ? { ...p, status } : p))
+  const updatePost   = (postId, patch)  => setPosts(ps => ps.map(p => p.id === postId ? { ...p, ...patch } : p))
   const addEmptyPost = (date) => {
     const newPost = {
       id: Date.now(), title: 'New Post',
@@ -1540,7 +1772,7 @@ export default function ContentBoard({ client }) {
         />
       )}
 
-      <DetailPanel post={selected} onClose={() => setSelectedId(null)} onStatusChange={updateStatus} />
+      <DetailPanel post={selected} onClose={() => setSelectedId(null)} onStatusChange={updateStatus} onUpdatePost={updatePost} />
     </div>
   )
 }
