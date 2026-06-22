@@ -1224,8 +1224,18 @@ function WeekView({ posts, onSelect, weekStart, onPrev, onNext, onAttachFile, on
                   <div className={`text-xs font-semibold uppercase tracking-wider ${isToday ? 'text-white/70' : 'text-muted-foreground'}`}>
                     {['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'][i]}
                   </div>
-                  <div className={`text-2xl font-semibold leading-tight mt-0.5 font-display ${isToday ? 'text-white' : 'text-ink'}`}>
-                    {day.getDate()}
+                  <div className="flex items-center justify-between mt-0.5">
+                    <div className={`text-2xl font-semibold leading-tight font-display ${isToday ? 'text-white' : 'text-ink'}`}>
+                      {day.getDate()}
+                    </div>
+                    <button
+                      onClick={() => onCreatePost(day, null)}
+                      className={`w-6 h-6 flex items-center justify-center rounded-md text-base leading-none transition-colors ${
+                        isToday
+                          ? 'text-white/60 hover:text-white hover:bg-white/10'
+                          : 'text-muted-foreground/50 hover:text-ink hover:bg-ink/5'
+                      }`}
+                      title="Add content">+</button>
                   </div>
                   <div className={`text-xs mt-0.5 ${isToday ? 'text-white/60' : 'text-muted-foreground'}`}>
                     {MONTHS[day.getMonth()].slice(0,3)}
@@ -1233,23 +1243,10 @@ function WeekView({ posts, onSelect, weekStart, onPrev, onNext, onAttachFile, on
                 </div>
 
                 {/* Cards */}
-                <div className="p-3 space-y-3 flex-1 flex flex-col">
+                <div className="p-3 space-y-3">
                   {dayFiltered.map(p => (
                     <WeekCard key={p.id} post={p} onSelect={onSelect} onFileDrop={file => onAttachFile(p.id, file)} />
                   ))}
-
-                  {/* Empty state / drop target */}
-                  <div
-                    className={`flex-1 min-h-[80px] rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-1 cursor-pointer transition-all group ${
-                      isDropTarget ? 'border-navy/40 bg-navy/[0.04]' : 'border-border hover:border-muted-foreground/30'
-                    }`}
-                    onClick={() => onCreatePost(day, null)}
-                  >
-                    <span className={`text-xl transition-colors ${isDropTarget ? 'text-navy/50' : 'text-muted-foreground/30 group-hover:text-muted-foreground/50'}`}>+</span>
-                    <span className={`text-xs transition-colors ${isDropTarget ? 'text-navy/60' : 'text-muted-foreground/40 group-hover:text-muted-foreground/60'}`}>
-                      {isDropTarget ? 'Drop to add' : 'Add content'}
-                    </span>
-                  </div>
                 </div>
               </div>
             )
