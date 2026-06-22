@@ -1,4 +1,11 @@
 import React, { useState, useRef } from 'react'
+import {
+  DndContext, DragOverlay, PointerSensor, useSensor, useSensors, closestCenter,
+} from '@dnd-kit/core'
+import {
+  SortableContext, horizontalListSortingStrategy, useSortable, arrayMove,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 // ── Progress & status configs ──────────────────────────────────────────────────
 const PROGRESS_MAP = {
@@ -449,11 +456,22 @@ function StickyNote({ note }) {
   )
 }
 
-function BoardColumn({ post, onSelect }) {
+function BoardColumn({ post, onSelect, dragHandleProps }) {
   return (
     <div className="w-[272px] flex-shrink-0 flex flex-col gap-2.5">
-      <div className="flex items-start justify-between gap-2">
-        <button onClick={() => onSelect(post)} className="text-left min-w-0 group">
+      <div className="flex items-start gap-1.5">
+        {dragHandleProps && (
+          <div {...dragHandleProps}
+            className="flex-shrink-0 mt-0.5 p-1 rounded text-muted-foreground/40 hover:text-muted-foreground/80 hover:bg-cream cursor-grab active:cursor-grabbing transition-colors"
+            title="Drag to reorder">
+            <svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor">
+              <circle cx="3" cy="2"  r="1.2"/><circle cx="7" cy="2"  r="1.2"/>
+              <circle cx="3" cy="7"  r="1.2"/><circle cx="7" cy="7"  r="1.2"/>
+              <circle cx="3" cy="12" r="1.2"/><circle cx="7" cy="12" r="1.2"/>
+            </svg>
+          </div>
+        )}
+        <button onClick={() => onSelect(post)} className="text-left min-w-0 group flex-1">
           <div className="text-sm font-semibold text-ink group-hover:text-navy transition-colors leading-tight">{post.title}</div>
           <div className="text-[0.58rem] text-muted-foreground mt-0.5">{fmtDate(post.publishDate)}</div>
         </button>
@@ -480,6 +498,78 @@ function BoardColumn({ post, onSelect }) {
       <StickyNote note={post.notes} />
       <button className="text-[0.65rem] text-muted-foreground hover:text-ink border border-dashed border-border rounded-md py-2 transition-colors w-full">+ Add card</button>
     </div>
+  )
+}
+
+// ── Board view (dnd-kit drag-to-reorder) ─────────────────────────────────────
+function SortableBoardColumn({ post, onSelect }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: post.id })
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.35 : 1,
+        position: 'relative',
+        zIndex: isDragging ? 10 : 1,
+      }}>
+      <BoardColumn post={post} onSelect={onSelect} dragHandleProps={{ ...attributes, ...listeners }} />
+    </div>
+  )
+}
+
+function BoardView({ posts, onSelect }) {
+  const [order, setOrder]   = useState(() => posts.map(p => p.id))
+  const [activeId, setActiveId] = useState(null)
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  )
+
+  const orderedPosts = order.map(id => posts.find(p => p.id === id)).filter(Boolean)
+  const activePost   = posts.find(p => p.id === activeId) || null
+
+  return (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragStart={({ active }) => setActiveId(active.id)}
+      onDragEnd={({ active, over }) => {
+        setActiveId(null)
+        if (!over || active.id === over.id) return
+        setOrder(prev => arrayMove(prev, prev.indexOf(active.id), prev.indexOf(over.id)))
+      }}
+      onDragCancel={() => setActiveId(null)}
+    >
+      <SortableContext items={order} strategy={horizontalListSortingStrategy}>
+        <div className="flex gap-4 overflow-x-auto pb-6 -mx-6 px-6" style={{ scrollbarWidth: 'thin' }}>
+          <div className="flex gap-4 min-w-max">
+            {orderedPosts.map(post => (
+              <SortableBoardColumn key={post.id} post={post} onSelect={onSelect} />
+            ))}
+            <div className="w-[220px] flex-shrink-0">
+              <button className="w-full h-10 flex items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-border text-xs text-muted-foreground hover:text-ink hover:border-ink/30 transition-colors">
+                + Add column
+              </button>
+            </div>
+          </div>
+        </div>
+      </SortableContext>
+
+      <DragOverlay dropAnimation={{ duration: 180, easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)' }}>
+        {activePost && (
+          <div style={{
+            transform: 'rotate(1.5deg)',
+            boxShadow: '0 20px 60px rgba(50,54,66,0.22)',
+            borderRadius: 12,
+            opacity: 0.96,
+          }}>
+            <BoardColumn post={activePost} onSelect={() => {}} />
+          </div>
+        )}
+      </DragOverlay>
+    </DndContext>
   )
 }
 
@@ -1242,18 +1332,12 @@ export default function ContentBoard({ client }) {
           posts={posts} onSelect={p => setSelectedId(p.id)}
           weekStart={weekStart} onPrev={prevWeek} onNext={nextWeek}
           onAttachFile={attachFileToPosts} onCreatePost={createPostFromDrop} onMovePost={movePost}
+          onGoToBoard={() => setView('board')}
         />
       )}
 
       {view === 'board' && (
-        <div className="flex gap-4 overflow-x-auto pb-6 -mx-6 px-6" style={{ scrollbarWidth: 'thin' }}>
-          {posts.map(post => (
-            <BoardColumn key={post.id} post={post} onSelect={p => setSelectedId(p.id)} />
-          ))}
-          <div className="w-[220px] flex-shrink-0">
-            <button className="w-full h-10 flex items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-border text-xs text-muted-foreground hover:text-ink hover:border-ink/30 transition-colors">+ Add column</button>
-          </div>
-        </div>
+        <BoardView posts={posts} onSelect={p => setSelectedId(p.id)} />
       )}
 
       <DetailPanel post={selected} onClose={() => setSelectedId(null)} onStatusChange={updateStatus} />
