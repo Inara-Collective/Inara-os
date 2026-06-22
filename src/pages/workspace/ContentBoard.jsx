@@ -502,34 +502,35 @@ function BoardColumn({ post, onSelect, dragHandleProps }) {
 }
 
 // ── Board view (dnd-kit drag-to-reorder) ─────────────────────────────────────
-function InsertionGap({ visible }) {
-  return (
-    <div style={{ width: 16, flexShrink: 0, display: 'flex', alignItems: 'stretch' }}>
-      <div style={{
-        width: 2,
-        margin: '0 auto',
-        alignSelf: 'stretch',
-        background: visible ? '#000000' : 'transparent',
-        borderRadius: 2,
-        transition: 'background 0.08s ease',
-      }} />
-    </div>
-  )
-}
-
 function SortableBoardColumn({ post, onSelect }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: post.id })
+
   return (
     <div
       ref={setNodeRef}
       style={{
         transform: CSS.Transform.toString(transform),
-        transition,
-        opacity: isDragging ? 0.35 : 1,
+        transition: transition ?? 'transform 200ms cubic-bezier(0.25, 0.46, 0.45, 0.94)',
         position: 'relative',
-        zIndex: isDragging ? 10 : 1,
+        flexShrink: 0,
+        zIndex: isDragging ? 20 : 1,
       }}>
-      <BoardColumn post={post} onSelect={onSelect} dragHandleProps={{ ...attributes, ...listeners }} />
+      {/* Actual column — hidden while dragging (keeps layout / height) */}
+      <div style={{ visibility: isDragging ? 'hidden' : 'visible', pointerEvents: isDragging ? 'none' : undefined }}>
+        <BoardColumn post={post} onSelect={onSelect} dragHandleProps={{ ...attributes, ...listeners }} />
+      </div>
+
+      {/* Placeholder outline shown in the gap while dragging */}
+      {isDragging && (
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          border: '2px dashed #B7C1CB',
+          borderRadius: 12,
+          background: 'rgba(183,193,203,0.10)',
+          pointerEvents: 'none',
+        }} />
+      )}
     </div>
   )
 }
@@ -537,7 +538,6 @@ function SortableBoardColumn({ post, onSelect }) {
 function BoardView({ posts, onSelect }) {
   const [order, setOrder]     = useState(() => posts.map(p => p.id))
   const [activeId, setActiveId] = useState(null)
-  const [overId, setOverId]   = useState(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
@@ -546,38 +546,25 @@ function BoardView({ posts, onSelect }) {
   const orderedPosts = order.map(id => posts.find(p => p.id === id)).filter(Boolean)
   const activePost   = posts.find(p => p.id === activeId) || null
 
-  const activeIdx = activeId ? order.indexOf(activeId) : -1
-  const overIdx   = overId   ? order.indexOf(overId)   : -1
-  // Gap index (between columns) where insertion line should appear
-  // Moving right: item lands after `over` → gap at overIdx+1
-  // Moving left:  item lands before `over` → gap at overIdx
-  const insertionGap = (activeId && overId && activeId !== overId)
-    ? (activeIdx < overIdx ? overIdx + 1 : overIdx)
-    : -1
-
   return (
     <DndContext
       sensors={sensors}
       collisionDetection={closestCenter}
-      onDragStart={({ active }) => { setActiveId(active.id); setOverId(null) }}
-      onDragOver={({ over }) => setOverId(over?.id ?? null)}
+      onDragStart={({ active }) => setActiveId(active.id)}
       onDragEnd={({ active, over }) => {
-        setActiveId(null); setOverId(null)
+        setActiveId(null)
         if (!over || active.id === over.id) return
         setOrder(prev => arrayMove(prev, prev.indexOf(active.id), prev.indexOf(over.id)))
       }}
-      onDragCancel={() => { setActiveId(null); setOverId(null) }}
+      onDragCancel={() => setActiveId(null)}
     >
       <SortableContext items={order} strategy={horizontalListSortingStrategy}>
         <div className="overflow-x-auto pb-6 -mx-6 px-6" style={{ scrollbarWidth: 'thin' }}>
-          <div className="flex min-w-max items-stretch">
-            {orderedPosts.map((post, idx) => (
-              <React.Fragment key={post.id}>
-                {idx > 0 && <InsertionGap visible={insertionGap === idx} />}
-                <SortableBoardColumn post={post} onSelect={onSelect} />
-              </React.Fragment>
+          <div className="flex gap-4 min-w-max items-stretch">
+            {orderedPosts.map(post => (
+              <SortableBoardColumn key={post.id} post={post} onSelect={onSelect} />
             ))}
-            <div style={{ marginLeft: 16 }} className="w-[220px] flex-shrink-0">
+            <div className="w-[220px] flex-shrink-0">
               <button className="w-full h-10 flex items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-border text-xs text-muted-foreground hover:text-ink hover:border-ink/30 transition-colors">
                 + Add column
               </button>
@@ -586,13 +573,18 @@ function BoardView({ posts, onSelect }) {
         </div>
       </SortableContext>
 
-      <DragOverlay dropAnimation={{ duration: 180, easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)' }}>
+      <DragOverlay
+        dropAnimation={{
+          duration: 220,
+          easing: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+        }}>
         {activePost && (
           <div style={{
-            transform: 'rotate(1.5deg)',
-            boxShadow: '0 20px 60px rgba(50,54,66,0.22)',
+            opacity: 0.75,
             borderRadius: 12,
-            opacity: 0.96,
+            transform: 'rotate(0.75deg) scale(1.015)',
+            boxShadow: '0 8px 24px rgba(50,54,66,0.18), 0 24px 56px rgba(50,54,66,0.22)',
+            cursor: 'grabbing',
           }}>
             <BoardColumn post={activePost} onSelect={() => {}} />
           </div>
