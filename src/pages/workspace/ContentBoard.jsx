@@ -931,11 +931,10 @@ function MonthView({ posts, onSelect, month, year, onPrev, onNext, onGoToWeek })
   )
 }
 
-// ── Week view card ─────────────────────────────────────────────────────────────
+// ── Week view card (rich Board-style) ─────────────────────────────────────────
 function WeekCard({ post, onSelect, onFileDrop }) {
   const [dragOver, setDragOver] = useState(false)
-  const bg       = CARD_BG[post.status]     || '#EEF1F4'
-  const border   = CARD_BORDER[post.status] || '#C8D2DA'
+  const cfg      = STATUS_CFG[post.status] || STATUS_CFG.Draft
   const progress = PROGRESS_MAP[post.status] || 0
   const isAttachedImage = post.attachedObjectUrl && !post.attachedFile?.type?.startsWith('video/')
   const isAttachedVideo = post.attachedObjectUrl && post.attachedFile?.type?.startsWith('video/')
@@ -952,72 +951,98 @@ function WeekCard({ post, onSelect, onFileDrop }) {
         const file = e.dataTransfer.files?.[0]
         if (isMediaFile(file)) onFileDrop?.(file)
       }}
-      className="rounded-xl overflow-hidden cursor-pointer transition-all select-none"
+      className="rounded-xl overflow-hidden select-none transition-all"
       style={{
-        background: bg,
-        border: `1.5px solid ${dragOver ? '#424B63' : border}`,
-        boxShadow: dragOver ? '0 0 0 2px rgba(66,75,99,0.2), 0 4px 16px rgba(50,54,66,0.12)' : '0 1px 3px rgba(50,54,66,0.08)',
+        background: '#FFFFFF',
+        border: `1.5px solid ${dragOver ? '#424B63' : '#E7E2DB'}`,
+        boxShadow: dragOver ? '0 0 0 2px rgba(66,75,99,0.2), 0 4px 16px rgba(50,54,66,0.12)' : '0 1px 4px rgba(50,54,66,0.07)',
       }}
-      onClick={() => onSelect(post)}
     >
-      {/* Thumbnail */}
+      {/* Status banner */}
+      <div className="px-3 py-2" style={{ background: cfg.bg }}>
+        <span className="text-[0.6rem] font-bold uppercase tracking-wider" style={{ color: cfg.color }}>{cfg.label}</span>
+      </div>
+
+      {/* Media thumbnail */}
       <div className="relative overflow-hidden flex items-center justify-center"
-        style={{ height: 120, background: `linear-gradient(135deg, ${post.gradientFrom}, ${post.gradientTo})` }}>
+        style={{ height: 110, background: `linear-gradient(135deg, ${post.gradientFrom}, ${post.gradientTo})` }}>
         {isAttachedImage && <img src={post.attachedObjectUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />}
         {(isAttachedVideo || post.isVideo) && !isAttachedImage && (
           <div className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.3)' }}>
             <span className="text-white text-sm ml-0.5">▶</span>
           </div>
         )}
-        {!post.isVideo && !post.attachedObjectUrl && (
-          <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent" />
-        )}
         {dragOver && (
           <div className="absolute inset-0 z-10 flex items-center justify-center" style={{ background: 'rgba(66,75,99,0.6)' }}>
             <span className="text-white text-xs font-semibold">+ Attach media</span>
           </div>
         )}
+        <div className="absolute bottom-0 left-0 right-0 px-2.5 py-1.5" style={{ background: 'rgba(50,54,66,0.35)' }}>
+          <span className="text-[0.55rem] text-white font-medium">{(post.platforms||[]).join(', ')}</span>
+        </div>
       </div>
 
-      <div className="p-3 space-y-2">
-        {/* Title */}
-        <div className="text-sm font-semibold text-ink leading-snug line-clamp-2">{post.title}</div>
+      <div className="p-3 space-y-2.5">
+        {/* Title + time — click opens detail panel */}
+        <button onClick={() => onSelect(post)} className="text-left w-full group">
+          <div className="text-sm font-semibold text-ink group-hover:text-navy transition-colors leading-snug line-clamp-2">{post.title}</div>
+          {post.scheduleTime && (
+            <div className="text-[0.58rem] text-muted-foreground mt-0.5">{fmtShort(post.publishDate)} · {post.scheduleTime}</div>
+          )}
+        </button>
 
-        {/* Status + type */}
-        <div className="flex flex-wrap gap-1.5">
-          <StatusPill status={post.status} size="xs" />
-          {post.contentType && <TypePill type={post.contentType} />}
-        </div>
+        {/* Attached files */}
+        {post.files.map((f, i) => <FileCard key={i} file={f} />)}
 
-        {/* Platforms */}
-        {post.platforms?.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {post.platforms.map(p => <PlatformPill key={p} platform={p} />)}
-          </div>
-        )}
-
-        {/* Schedule time */}
-        {post.scheduleTime && (
-          <div className="text-xs text-muted-foreground">
-            {fmtShort(post.publishDate)} at {post.scheduleTime}
-          </div>
-        )}
-
-        {/* Caption preview */}
+        {/* Caption */}
         {post.caption && (
-          <div className="text-xs text-ink/60 leading-relaxed line-clamp-2 italic">
-            {post.caption.slice(0, 80)}{post.caption.length > 80 ? '…' : ''}
+          <div className="rounded-md border border-border bg-white p-2.5">
+            <div className="text-[0.55rem] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Caption</div>
+            <div className="text-xs text-ink leading-relaxed">
+              {post.caption.length > 100 ? post.caption.slice(0, 100) + '…' : post.caption}
+            </div>
+            {post.caption.length > 100 && (
+              <button onClick={() => onSelect(post)}
+                className="text-[0.6rem] text-navy mt-1 hover:underline">Read more</button>
+            )}
           </div>
         )}
 
-        {/* Progress bar */}
+        {/* Comments */}
+        {post.comments.length > 0 && (
+          <div className="rounded-md border border-border bg-white p-2.5">
+            <div className="text-[0.55rem] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+              Comments ({post.comments.length})
+            </div>
+            {post.comments.slice(0, 2).map((c, i) => (
+              <div key={i} className="flex gap-1.5 mb-2">
+                <AvatarInitial name={c.author.replace('@', '')} size={5} />
+                <div className="min-w-0">
+                  <span className="text-[0.6rem] font-semibold text-navy">{c.author}</span>
+                  <span className="text-[0.55rem] text-muted-foreground ml-1">{c.time}</span>
+                  <div className="text-xs text-ink mt-0.5 leading-snug line-clamp-2">{c.text}</div>
+                </div>
+              </div>
+            ))}
+            <input
+              className="w-full text-xs border border-border rounded-md px-2 py-1.5 text-ink placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-navy mt-0.5"
+              placeholder="Type a comment…"
+              onClick={e => e.stopPropagation()}
+            />
+          </div>
+        )}
+
+        {/* Internal note */}
+        <StickyNote note={post.notes} />
+
+        {/* Progress bar + owner */}
         <div>
           <div className="w-full h-1.5 rounded-full overflow-hidden mb-1.5" style={{ background: 'rgba(50,54,66,0.1)' }}>
             <div className="h-full rounded-full transition-all" style={{ width: `${progress}%`, background: progress === 100 ? '#BABEAF' : '#424B63' }} />
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">{post.owner || ''}{post.updatedAgo ? ` — ${post.updatedAgo}` : ''}</span>
-            <span className="text-xs font-medium text-muted-foreground">{progress}%</span>
+            <span className="text-[0.6rem] text-muted-foreground">{post.owner || ''}{post.updatedAgo ? ` — ${post.updatedAgo}` : ''}</span>
+            <span className="text-[0.6rem] font-medium text-muted-foreground">{progress}%</span>
           </div>
         </div>
       </div>
@@ -1098,14 +1123,8 @@ function WeekView({ posts, onSelect, weekStart, onPrev, onNext, onAttachFile, on
             <div className="text-xs text-muted-foreground mt-0.5">Plan, review and approve this week's content.</div>
           </div>
 
-          {/* Right: Week/Board toggle + Filter + nav */}
+          {/* Right: Filter + nav */}
           <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
-            {/* Week / Board toggle */}
-            <div className="flex items-center gap-1 bg-cream rounded-lg p-1 border border-border">
-              <button className="px-3 py-1.5 rounded-md text-xs font-medium bg-white text-ink shadow-sm">Week</button>
-              <button onClick={onGoToBoard} className="px-3 py-1.5 rounded-md text-xs font-medium text-muted-foreground hover:text-ink transition-colors">Board</button>
-            </div>
-
             {/* Filter toggle */}
             <button
               onClick={() => setShowFilters(f => !f)}
@@ -1288,7 +1307,6 @@ export default function ContentBoard({ client }) {
     { key: 'overview', label: 'Overview' },
     { key: 'month',    label: 'Month' },
     { key: 'week',     label: 'Week' },
-    { key: 'board',    label: 'Board' },
   ]
 
   return (
@@ -1332,12 +1350,7 @@ export default function ContentBoard({ client }) {
           posts={posts} onSelect={p => setSelectedId(p.id)}
           weekStart={weekStart} onPrev={prevWeek} onNext={nextWeek}
           onAttachFile={attachFileToPosts} onCreatePost={createPostFromDrop} onMovePost={movePost}
-          onGoToBoard={() => setView('board')}
         />
-      )}
-
-      {view === 'board' && (
-        <BoardView posts={posts} onSelect={p => setSelectedId(p.id)} />
       )}
 
       <DetailPanel post={selected} onClose={() => setSelectedId(null)} onStatusChange={updateStatus} />
