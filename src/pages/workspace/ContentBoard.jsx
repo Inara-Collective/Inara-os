@@ -816,46 +816,139 @@ function MonthGridCard({ post, onSelect, compact }) {
   )
 }
 
-// ── Month view ─────────────────────────────────────────────────────────────────
-const MAX_PER_DAY = 8 // cards shown before "+N more"
+// ── Month mini card ────────────────────────────────────────────────────────────
+function MonthMiniCard({ post, onSelect }) {
+  const cfg = STATUS_CFG[post.status] || STATUS_CFG.Draft
+  return (
+    <div
+      onClick={() => onSelect(post)}
+      className="rounded-md overflow-hidden cursor-pointer group transition-all hover:shadow-sm"
+      style={{ border: '1px solid #EDE9E5', background: '#fff' }}>
+      {/* Thumbnail */}
+      <div className="relative overflow-hidden flex items-center justify-center"
+        style={{ height: 38, background: `linear-gradient(135deg, ${post.gradientFrom}, ${post.gradientTo})` }}>
+        {post.attachedObjectUrl && !post.attachedFile?.type?.startsWith('video/') && (
+          <img src={post.attachedObjectUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
+        )}
+        {post.isVideo && (
+          <div className="w-4 h-4 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.4)' }}>
+            <span className="text-white" style={{ fontSize: '0.38rem', marginLeft: 1 }}>▶</span>
+          </div>
+        )}
+        {/* Thin status strip at top */}
+        <div className="absolute top-0 left-0 right-0 h-[3px]" style={{ background: cfg.bg }} />
+      </div>
+      {/* Info */}
+      <div className="px-1.5 pt-1 pb-1.5">
+        <div className="text-[0.62rem] font-semibold text-ink leading-tight line-clamp-2 group-hover:text-navy transition-colors mb-1">
+          {post.title}
+        </div>
+        <div className="flex items-center gap-1 flex-wrap">
+          <StatusPill status={post.status} size="xs" />
+          {post.platforms?.[0] && (
+            <span className="text-[0.5rem] text-muted-foreground leading-none truncate">{post.platforms[0]}</span>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
 
-function MonthView({ posts, onSelect, month, year, onPrev, onNext, onGoToWeek }) {
-  const [filterPillar, setFilterPillar] = useState('')
-  const [gridCols, setGridCols]         = useState(4) // 4 or 3 (list-like)
+// ── Month week row ─────────────────────────────────────────────────────────────
+const MAX_MINI_CARDS = 3
 
+function MonthWeekRow({ weekDays, weekNum, month, posts, filterPillar, onSelect, onAddPost }) {
   const today = new Date()
 
-  const monthPosts = posts.filter(p => {
-    const d = new Date(p.publishDate)
-    return d.getMonth() === month && d.getFullYear() === year
-  })
+  // Date range label — only days within this month
+  const monthDays  = weekDays.filter(d => d.getMonth() === month)
+  const rangeStart = monthDays[0]?.getDate()
+  const rangeEnd   = monthDays[monthDays.length - 1]?.getDate()
+  const abbr       = MONTHS[month].slice(0, 3)
+  const rangeLabel = rangeStart === rangeEnd ? `${rangeStart} ${abbr}` : `${rangeStart}–${rangeEnd} ${abbr}`
 
-  const filtered = filterPillar
-    ? monthPosts.filter(p => p.pillar === filterPillar)
-    : monthPosts
+  return (
+    <div className="card overflow-hidden">
+      {/* Week label strip */}
+      <div className="flex items-center gap-2 px-4 py-2 border-b border-border" style={{ background: 'rgba(244,240,238,0.5)' }}>
+        <span className="text-xs font-semibold text-ink">Week {weekNum}</span>
+        <span className="text-[0.65rem] text-muted-foreground">· {rangeLabel}</span>
+      </div>
 
-  // Weekday counts (Mon=0…Sun=6)
-  const weekdayCounts = WEEKDAYS.map((_, i) =>
-    monthPosts.filter(p => {
-      const dow = new Date(p.publishDate).getDay()
-      const adj = dow === 0 ? 6 : dow - 1
-      return adj === i
-    }).length
+      {/* 7-column grid */}
+      <div className="grid grid-cols-7 divide-x divide-border">
+        {weekDays.map((day, i) => {
+          const inMonth  = day.getMonth() === month
+          const isToday  = sameDay(day, today)
+          const dayPosts = !inMonth ? [] : posts.filter(p => {
+            if (filterPillar && p.pillar !== filterPillar) return false
+            return sameDay(new Date(p.publishDate), day)
+          })
+          const visible  = dayPosts.slice(0, MAX_MINI_CARDS)
+          const overflow = dayPosts.length - MAX_MINI_CARDS
+
+          return (
+            <div key={i} className={`flex flex-col ${!inMonth ? 'bg-cream/60' : isToday ? '' : 'bg-white'}`}
+              style={{ minHeight: 140 }}>
+              {/* Day header */}
+              <div className={`px-2 py-2 flex items-center justify-between border-b border-border/60 flex-shrink-0 ${isToday ? 'bg-navy' : ''}`}>
+                <div>
+                  <div className={`text-[0.5rem] font-semibold uppercase tracking-wider ${isToday ? 'text-white/70' : 'text-muted-foreground'}`}>
+                    {WEEKDAYS[i]}
+                  </div>
+                  <div className={`text-sm font-semibold font-display leading-tight mt-0.5 ${isToday ? 'text-white' : inMonth ? 'text-ink' : 'text-muted-foreground/40'}`}>
+                    {day.getDate()}
+                  </div>
+                </div>
+                {inMonth && (
+                  <button
+                    onClick={() => onAddPost(day)}
+                    className={`w-5 h-5 flex items-center justify-center rounded text-sm leading-none transition-colors ${isToday ? 'text-white/60 hover:text-white hover:bg-white/10' : 'text-muted-foreground/40 hover:text-ink hover:bg-ink/5'}`}
+                    title="Add content">+</button>
+                )}
+              </div>
+
+              {/* Cards */}
+              <div className="p-1.5 space-y-1.5 flex-1">
+                {visible.map(post => (
+                  <MonthMiniCard key={post.id} post={post} onSelect={onSelect} />
+                ))}
+                {overflow > 0 && (
+                  <button className="text-[0.58rem] font-medium text-navy hover:underline px-0.5 block">
+                    +{overflow} more
+                  </button>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
   )
+}
 
-  // Build day groups for the month
-  const daysInMonth = new Date(year, month + 1, 0).getDate()
-  const dayGroups   = []
-  for (let d = 1; d <= daysInMonth; d++) {
-    const date     = new Date(year, month, d)
-    const dayPosts = filtered.filter(p => sameDay(new Date(p.publishDate), date))
-    if (dayPosts.length > 0) dayGroups.push({ date, posts: dayPosts })
+// ── Month view ─────────────────────────────────────────────────────────────────
+function MonthView({ posts, onSelect, month, year, onPrev, onNext, onGoToWeek, onAddPost }) {
+  const [filterPillar, setFilterPillar] = useState('')
+
+  // Build full Mon–Sun weeks that cover every day of the month
+  const firstDay    = new Date(year, month, 1)
+  const lastDay     = new Date(year, month + 1, 0)
+  const startMonday = getMonday(firstDay)
+
+  const weeks = []
+  let ws = new Date(startMonday)
+  while (ws <= lastDay) {
+    weeks.push(Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(ws); d.setDate(ws.getDate() + i); return d
+    }))
+    ws = new Date(ws); ws.setDate(ws.getDate() + 7)
   }
 
   return (
     <div>
       {/* Header */}
-      <div className="flex items-start justify-between mb-6">
+      <div className="flex items-start justify-between mb-5">
         <div>
           <div className="flex items-center gap-3">
             <button onClick={onPrev}
@@ -866,84 +959,35 @@ function MonthView({ posts, onSelect, month, year, onPrev, onNext, onGoToWeek })
           </div>
           <p className="text-sm text-muted-foreground mt-1 ml-11">This month's content at a glance.</p>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 bg-cream rounded-lg p-1 border border-border">
-            <button onClick={() => setGridCols(4)}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${gridCols === 4 ? 'bg-white text-ink shadow-sm' : 'text-muted-foreground hover:text-ink'}`}>
-              ⊞ Grid
-            </button>
-            <button onClick={() => setGridCols(2)}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${gridCols === 2 ? 'bg-white text-ink shadow-sm' : 'text-muted-foreground hover:text-ink'}`}>
-              ☰ List
-            </button>
-          </div>
-        </div>
       </div>
 
-      {/* Weekday strip */}
-      <div className="grid grid-cols-7 gap-2 mb-5">
-        {WEEKDAYS.map((day, i) => (
-          <div key={day} className="card px-2 py-2.5 text-center">
-            <div className="text-[0.57rem] font-semibold uppercase tracking-wider text-muted-foreground">{day}</div>
-            <div className="font-display text-lg text-ink mt-0.5 leading-none">{weekdayCounts[i]}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Content pillars */}
-      <div className="flex items-center flex-wrap gap-2 mb-6">
+      {/* Content pillars filter */}
+      <div className="flex items-center flex-wrap gap-2 mb-5">
         <span className="text-xs text-muted-foreground mr-1">Content Pillars</span>
         <PillarChip label="All" active={!filterPillar} onClick={() => setFilterPillar('')} />
         {PILLARS.map(p => (
-          <PillarChip key={p} label={p} active={filterPillar === p} onClick={() => setFilterPillar(filterPillar === p ? '' : p)} />
+          <PillarChip key={p} label={p} active={filterPillar === p}
+            onClick={() => setFilterPillar(filterPillar === p ? '' : p)} />
         ))}
       </div>
 
-      {/* Content grid */}
-      {dayGroups.length === 0 ? (
-        <div className="text-center py-20 text-muted-foreground text-sm">No content for this month.</div>
-      ) : (
-        <div className="space-y-8">
-          {dayGroups.map(({ date, posts: dayPosts }) => {
-            const visible  = dayPosts.slice(0, MAX_PER_DAY)
-            const overflow = dayPosts.length - MAX_PER_DAY
-            const isToday  = sameDay(date, today)
-            const dowIdx   = (date.getDay() + 6) % 7
-            return (
-              <div key={dateKey(date)}>
-                {/* Day label */}
-                <div className="flex items-center gap-2 mb-3">
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0 ${isToday ? 'bg-navy text-white' : 'bg-cream text-muted-foreground'}`}>
-                    {date.getDate()}
-                  </div>
-                  <span className="text-sm font-medium text-ink">
-                    {WEEKDAYS[dowIdx]}, {date.getDate()} {MONTHS[month].slice(0,3)}
-                  </span>
-                  <span className="text-xs text-muted-foreground">· {dayPosts.length} item{dayPosts.length !== 1 ? 's' : ''}</span>
-                </div>
-                <div className={`grid gap-4 ${gridCols === 4 ? 'grid-cols-4' : 'grid-cols-2'}`}>
-                  {visible.map(post => (
-                    <MonthGridCard key={post.id} post={post} onSelect={onSelect} />
-                  ))}
-                  {overflow > 0 && (
-                    <div
-                      className="rounded-xl border-2 border-dashed border-border flex flex-col items-center justify-center cursor-pointer hover:border-navy/30 transition-colors group"
-                      style={{ minHeight: 180 }}
-                      onClick={onGoToWeek}
-                    >
-                      <span className="font-display text-2xl text-muted-foreground group-hover:text-navy transition-colors">+{overflow}</span>
-                      <span className="text-xs text-muted-foreground mt-1">more</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
+      {/* Week rows */}
+      <div className="space-y-4">
+        {weeks.map((weekDays, idx) => (
+          <MonthWeekRow
+            key={idx}
+            weekDays={weekDays}
+            weekNum={idx + 1}
+            month={month}
+            posts={posts}
+            filterPillar={filterPillar}
+            onSelect={onSelect}
+            onAddPost={onAddPost}
+          />
+        ))}
+      </div>
 
-      {/* View full calendar CTA */}
-      <div className="mt-10 text-center">
+      <div className="mt-8 text-center">
         <button onClick={onGoToWeek} className="text-sm text-navy hover:underline font-medium">
           View full week calendar →
         </button>
@@ -1320,6 +1364,20 @@ export default function ContentBoard({ client }) {
   }
   const movePost    = (postId, newDate) => setPosts(ps => ps.map(p => p.id === postId ? { ...p, publishDate: newDate } : p))
   const updateStatus = (postId, status) => setPosts(ps => ps.map(p => p.id === postId ? { ...p, status } : p))
+  const addEmptyPost = (date) => {
+    const newPost = {
+      id: Date.now(), title: 'New Post',
+      status: 'Draft', pillar: 'Brand Story', contentType: 'Post',
+      platforms: ['Instagram'], isVideo: false,
+      gradientFrom: '#D1D8DE', gradientTo: '#B7C1CB',
+      caption: '', files: [], comments: [], notes: '',
+      publishDate: date, scheduleTime: null,
+      owner: 'Maxine', updatedAgo: 'Just now',
+      attachedFile: null, attachedObjectUrl: null,
+    }
+    setPosts(ps => [...ps, newPost])
+    setSelectedId(newPost.id)
+  }
 
   const VIEW_TABS = [
     { key: 'overview', label: 'Overview' },
@@ -1360,6 +1418,7 @@ export default function ContentBoard({ client }) {
           month={month} year={year}
           onPrev={prevMonth} onNext={nextMonth}
           onGoToWeek={() => setView('week')}
+          onAddPost={addEmptyPost}
         />
       )}
 
