@@ -14,13 +14,13 @@ const PROGRESS_MAP = {
 
 const STATUS_TAG = {
   'Idea Only':      { bg: '#F4EFE9', color: '#5F6368' },
-  'Draft':          { bg: '#E7E2DB', color: '#323642' },
-  'To Review':      { bg: '#DAE6F6', color: '#2A3F6A' },
-  'Being Reviewed': { bg: '#DCEBDD', color: '#2A4A2C' },
-  'Needs Changes':  { bg: '#F6E6C8', color: '#6B4A10' },
-  'Approved':       { bg: '#DCEBDD', color: '#2A4A2C' },
-  'Scheduled':      { bg: '#DAE6F6', color: '#2A3F6A' },
-  'Posted':         { bg: '#DCEBDD', color: '#2A4A2C' },
+  'Draft':          { bg: '#E7E2DB', color: '#000000' },
+  'To Review':      { bg: '#DAE6F6', color: '#000000' },
+  'Being Reviewed': { bg: '#DCEBDD', color: '#000000' },
+  'Needs Changes':  { bg: '#F6E6C8', color: '#000000' },
+  'Approved':       { bg: '#DCEBDD', color: '#000000' },
+  'Scheduled':      { bg: '#DAE6F6', color: '#000000' },
+  'Posted':         { bg: '#DCEBDD', color: '#000000' },
 }
 
 const STATUS_CFG = {
@@ -318,10 +318,26 @@ function weekLabel(ws) {
 // ── Shared sub-components ──────────────────────────────────────────────────────
 function StatusPill({ status, size = 'sm' }) {
   const tag = STATUS_TAG[status] || STATUS_TAG['Draft']
+  const style = size === 'xs'
+    ? { padding: '3px 8px', fontSize: '0.65rem', borderRadius: 999, border: '1px solid #E7E2DB', background: tag.bg, color: tag.color, fontWeight: 500 }
+    : { padding: '5px 10px', fontSize: '13px',    borderRadius: 999, border: '1px solid #E7E2DB', background: tag.bg, color: tag.color, fontWeight: 500 }
+  return <span className="inline-flex items-center whitespace-nowrap" style={style}>{status}</span>
+}
+
+function TypePill({ type }) {
   return (
-    <span className={`inline-flex items-center rounded-full font-medium ${size === 'xs' ? 'px-2 py-0.5 text-[0.58rem]' : 'px-2.5 py-0.5 text-xs'}`}
-      style={{ background: tag.bg, color: tag.color }}>
-      {status}
+    <span className="inline-flex items-center whitespace-nowrap"
+      style={{ padding: '5px 10px', fontSize: '13px', borderRadius: 999, fontWeight: 500, background: '#FFFFFF', color: '#000000', border: '1px solid #A6AAB5' }}>
+      {type}
+    </span>
+  )
+}
+
+function PlatformPill({ platform }) {
+  return (
+    <span className="inline-flex items-center whitespace-nowrap"
+      style={{ padding: '5px 10px', fontSize: '13px', borderRadius: 999, fontWeight: 500, background: '#F4EFE9', color: '#000000', border: '1px solid #E7E2DB' }}>
+      {platform}
     </span>
   )
 }
@@ -830,7 +846,6 @@ function WeekCard({ post, onSelect, onFileDrop }) {
   const [dragOver, setDragOver] = useState(false)
   const bg       = CARD_BG[post.status]     || '#EEF1F4'
   const border   = CARD_BORDER[post.status] || '#C8D2DA'
-  const tag      = STATUS_TAG[post.status]  || STATUS_TAG['Draft']
   const progress = PROGRESS_MAP[post.status] || 0
   const isAttachedImage = post.attachedObjectUrl && !post.attachedFile?.type?.startsWith('video/')
   const isAttachedVideo = post.attachedObjectUrl && post.attachedFile?.type?.startsWith('video/')
@@ -851,59 +866,69 @@ function WeekCard({ post, onSelect, onFileDrop }) {
       style={{
         background: bg,
         border: `1.5px solid ${dragOver ? '#424B63' : border}`,
-        boxShadow: dragOver ? '0 0 0 2px rgba(66,75,99,0.2), 0 4px 16px rgba(50,54,66,0.12)' : '0 1px 4px rgba(50,54,66,0.07)',
+        boxShadow: dragOver ? '0 0 0 2px rgba(66,75,99,0.2), 0 4px 16px rgba(50,54,66,0.12)' : '0 1px 3px rgba(50,54,66,0.08)',
       }}
       onClick={() => onSelect(post)}
     >
+      {/* Thumbnail */}
       <div className="relative overflow-hidden flex items-center justify-center"
-        style={{ height: 56, background: `linear-gradient(135deg, ${post.gradientFrom}, ${post.gradientTo})` }}>
+        style={{ height: 120, background: `linear-gradient(135deg, ${post.gradientFrom}, ${post.gradientTo})` }}>
         {isAttachedImage && <img src={post.attachedObjectUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />}
         {(isAttachedVideo || post.isVideo) && !isAttachedImage && (
-          <div className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.28)' }}>
-            <span className="text-white text-xs ml-0.5">▶</span>
+          <div className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.3)' }}>
+            <span className="text-white text-sm ml-0.5">▶</span>
           </div>
+        )}
+        {!post.isVideo && !post.attachedObjectUrl && (
+          <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent" />
         )}
         {dragOver && (
           <div className="absolute inset-0 z-10 flex items-center justify-center" style={{ background: 'rgba(66,75,99,0.6)' }}>
-            <span className="text-white text-[0.6rem] font-semibold">+ Attach</span>
+            <span className="text-white text-xs font-semibold">+ Attach media</span>
           </div>
         )}
       </div>
 
-      <div className="p-2 space-y-1.5">
-        <div className="text-[0.7rem] font-semibold text-ink leading-snug line-clamp-2">{post.title}</div>
-        <div className="flex flex-wrap gap-1">
+      <div className="p-3 space-y-2">
+        {/* Title */}
+        <div className="text-sm font-semibold text-ink leading-snug line-clamp-2">{post.title}</div>
+
+        {/* Status + type */}
+        <div className="flex flex-wrap gap-1.5">
           <StatusPill status={post.status} size="xs" />
-          {post.contentType && (
-            <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[0.58rem] font-medium border" style={{ background: '#fff', color: '#323642', borderColor: '#A6AAB5' }}>
-              {post.contentType}
-            </span>
-          )}
+          {post.contentType && <TypePill type={post.contentType} />}
         </div>
+
+        {/* Platforms */}
         {post.platforms?.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {post.platforms.map(p => (
-              <span key={p} className="inline-flex items-center rounded-full px-2 py-0.5 text-[0.55rem] font-medium border" style={{ background: '#F4EFE9', color: '#323642', borderColor: '#E7E2DB' }}>{p}</span>
-            ))}
+          <div className="flex flex-wrap gap-1.5">
+            {post.platforms.map(p => <PlatformPill key={p} platform={p} />)}
           </div>
         )}
+
+        {/* Schedule time */}
         {post.scheduleTime && (
-          <div className="text-[0.58rem] text-muted-foreground">{fmtShort(post.publishDate)} at {post.scheduleTime}</div>
+          <div className="text-xs text-muted-foreground">
+            {fmtShort(post.publishDate)} at {post.scheduleTime}
+          </div>
         )}
+
+        {/* Caption preview */}
         {post.caption && (
-          <div className="text-[0.6rem] text-ink/70 leading-snug line-clamp-2 italic">
-            {post.caption.slice(0, 70)}{post.caption.length > 70 ? '…' : ''}
+          <div className="text-xs text-ink/60 leading-relaxed line-clamp-2 italic">
+            {post.caption.slice(0, 80)}{post.caption.length > 80 ? '…' : ''}
           </div>
         )}
-        <div className="pt-0.5">
-          <div className="flex items-center justify-between mb-0.5">
-            <span className="text-[0.52rem] text-muted-foreground">{post.owner || ''}</span>
-            <span className="text-[0.52rem] text-muted-foreground">{progress}%</span>
-          </div>
-          <div className="w-full h-1 rounded-full overflow-hidden" style={{ background: 'rgba(50,54,66,0.1)' }}>
+
+        {/* Progress bar */}
+        <div>
+          <div className="w-full h-1.5 rounded-full overflow-hidden mb-1.5" style={{ background: 'rgba(50,54,66,0.1)' }}>
             <div className="h-full rounded-full transition-all" style={{ width: `${progress}%`, background: progress === 100 ? '#BABEAF' : '#424B63' }} />
           </div>
-          {post.updatedAgo && <div className="text-[0.52rem] text-muted-foreground mt-0.5">{post.updatedAgo}</div>}
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">{post.owner || ''}{post.updatedAgo ? ` — ${post.updatedAgo}` : ''}</span>
+            <span className="text-xs font-medium text-muted-foreground">{progress}%</span>
+          </div>
         </div>
       </div>
     </div>
@@ -911,9 +936,10 @@ function WeekCard({ post, onSelect, onFileDrop }) {
 }
 
 // ── Week view ──────────────────────────────────────────────────────────────────
-function WeekView({ posts, onSelect, weekStart, onPrev, onNext, onAttachFile, onCreatePost, onMovePost }) {
+function WeekView({ posts, onSelect, weekStart, onPrev, onNext, onAttachFile, onCreatePost, onMovePost, onGoToBoard }) {
   const today      = new Date()
-  const [dragOverKey, setDragOverKey] = useState(null)
+  const [dragOverKey,    setDragOverKey]    = useState(null)
+  const [showFilters,    setShowFilters]    = useState(false)
   const [filterPlatform, setFilterPlatform] = useState('')
   const [filterType,     setFilterType]     = useState('')
   const [filterStatus,   setFilterStatus]   = useState('')
@@ -925,20 +951,35 @@ function WeekView({ posts, onSelect, weekStart, onPrev, onNext, onAttachFile, on
     const d = new Date(weekStart); d.setDate(weekStart.getDate() + i); return d
   })
 
-  const weekEnd     = days[6]
-  const rangeLabel  = `${weekStart.getDate()}–${weekEnd.getDate()} ${MONTHS[weekEnd.getMonth()]} ${weekEnd.getFullYear()}`
+  const weekEnd    = days[6]
+  const rangeLabel = `${weekStart.getDate()}–${weekEnd.getDate()} ${MONTHS[weekEnd.getMonth()]} ${weekEnd.getFullYear()}`
+
   const weekPosts   = posts.filter(p => days.some(d => sameDay(new Date(p.publishDate), d)))
   const avgProgress = weekPosts.length
     ? Math.round(weekPosts.reduce((s, p) => s + (PROGRESS_MAP[p.status] || 0), 0) / weekPosts.length)
     : 0
-  const postedCount = weekPosts.filter(p => p.status === 'Posted').length
+  const postedCount  = weekPosts.filter(p => p.status === 'Posted').length
+  const activeFilters = [filterPlatform, filterType, filterStatus].filter(Boolean).length
 
   const filtered = posts.filter(p => {
     if (filterPlatform && !(p.platforms||[]).includes(filterPlatform)) return false
-    if (filterType   && p.contentType !== filterType)                  return false
-    if (filterStatus && p.status      !== filterStatus)                return false
+    if (filterType     && p.contentType !== filterType)                return false
+    if (filterStatus   && p.status      !== filterStatus)              return false
     return true
   })
+
+  const goToToday = () => {
+    const d = new Date(); d.setHours(0,0,0,0)
+    // find the Monday of today's week and set weekStart via the parent
+    // We call onPrev/onNext indirectly — instead just set weekStart
+    // Since we can't setState here directly, emit it via a synthetic sequence
+    // (parent controls weekStart so we navigate relative to it)
+    const todayMonday = getMonday(new Date())
+    const currentMonday = getMonday(weekStart)
+    const diff = Math.round((todayMonday - currentMonday) / (7 * 24 * 60 * 60 * 1000))
+    if (diff > 0) for (let i = 0; i < diff; i++) onNext()
+    else if (diff < 0) for (let i = 0; i < -diff; i++) onPrev()
+  }
 
   const onMouseDown = e => {
     if (e.button !== 0) return
@@ -957,64 +998,107 @@ function WeekView({ posts, onSelect, weekStart, onPrev, onNext, onAttachFile, on
 
   return (
     <div>
-      {/* Header */}
+      {/* ── Header ── */}
       <div className="mb-5">
-        <div className="flex items-start justify-between">
+        <div className="flex items-start justify-between gap-4">
+          {/* Left: title + subtext */}
           <div>
-            <div className="font-display text-3xl text-ink leading-tight">{weekLabel(weekStart)}</div>
+            <h2 className="font-display text-3xl text-ink leading-tight">{weekLabel(weekStart)}</h2>
             <div className="text-sm text-muted-foreground mt-0.5">{rangeLabel}</div>
             <div className="text-xs text-muted-foreground mt-0.5">Plan, review and approve this week's content.</div>
           </div>
-          <div className="flex items-center gap-2">
-            <button onClick={onPrev} className="w-8 h-8 flex items-center justify-center rounded-lg border border-border bg-white text-muted-foreground hover:text-ink hover:border-ink/30 transition-colors text-sm">←</button>
-            <button onClick={onNext} className="w-8 h-8 flex items-center justify-center rounded-lg border border-border bg-white text-muted-foreground hover:text-ink hover:border-ink/30 transition-colors text-sm">→</button>
+
+          {/* Right: Week/Board toggle + Filter + nav */}
+          <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
+            {/* Week / Board toggle */}
+            <div className="flex items-center gap-1 bg-cream rounded-lg p-1 border border-border">
+              <button className="px-3 py-1.5 rounded-md text-xs font-medium bg-white text-ink shadow-sm">Week</button>
+              <button onClick={onGoToBoard} className="px-3 py-1.5 rounded-md text-xs font-medium text-muted-foreground hover:text-ink transition-colors">Board</button>
+            </div>
+
+            {/* Filter toggle */}
+            <button
+              onClick={() => setShowFilters(f => !f)}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border text-xs font-medium transition-all"
+              style={{
+                background:  showFilters ? '#424B63' : '#fff',
+                color:       showFilters ? '#fff'    : '#6B7485',
+                borderColor: showFilters ? '#424B63'  : '#E7E2DB',
+              }}>
+              {/* filter icon */}
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                <path d="M1 2h10M3 6h6M5 10h2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+              Filter{activeFilters > 0 ? ` (${activeFilters})` : ''}
+            </button>
+
+            {/* Navigation */}
+            <div className="flex items-center gap-1">
+              <button onClick={onPrev}
+                className="w-8 h-8 flex items-center justify-center rounded-lg border border-border bg-white text-muted-foreground hover:text-ink hover:border-ink/30 transition-colors text-sm">←</button>
+              <button onClick={goToToday}
+                className="px-3 h-8 flex items-center justify-center rounded-lg border border-border bg-white text-xs font-medium text-ink hover:border-navy/30 transition-colors">
+                Today
+              </button>
+              <button onClick={onNext}
+                className="w-8 h-8 flex items-center justify-center rounded-lg border border-border bg-white text-muted-foreground hover:text-ink hover:border-ink/30 transition-colors text-sm">→</button>
+            </div>
           </div>
         </div>
+
+        {/* Week progress bar */}
         <div className="mt-4 card p-4">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-medium text-ink">Week Progress</span>
-            <span className="text-xs text-muted-foreground">{avgProgress}% · {postedCount} of {weekPosts.length} items completed</span>
+            <span className="text-sm font-medium text-ink">Week Progress</span>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-ink">{avgProgress}%</span>
+              <span className="text-xs text-muted-foreground">{postedCount} of {weekPosts.length} items completed</span>
+              {avgProgress === 100 && <span className="text-xs text-muted-foreground">✓</span>}
+            </div>
           </div>
-          <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: '#E8ECF0' }}>
-            <div className="h-full rounded-full transition-all duration-500" style={{ width: `${avgProgress}%`, background: avgProgress === 100 ? '#BABEAF' : '#424B63' }} />
+          <div className="w-full h-2.5 rounded-full overflow-hidden" style={{ background: '#E8ECF0' }}>
+            <div className="h-full rounded-full transition-all duration-700"
+              style={{ width: `${avgProgress}%`, background: avgProgress === 100 ? '#BABEAF' : '#424B63' }} />
           </div>
         </div>
       </div>
 
-      {/* Filter bar */}
-      <div className="card p-4 mb-4 space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground w-14 flex-shrink-0">Platform</span>
-          <FilterChip label="All" active={!filterPlatform} onClick={() => setFilterPlatform('')} />
-          {PLATFORMS.map(p => <FilterChip key={p} label={p} active={filterPlatform === p} onClick={() => setFilterPlatform(filterPlatform === p ? '' : p)} />)}
+      {/* ── Collapsible filter bar ── */}
+      {showFilters && (
+        <div className="card p-4 mb-4 space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground w-14 flex-shrink-0">Platform</span>
+            <FilterChip label="All" active={!filterPlatform} onClick={() => setFilterPlatform('')} />
+            {PLATFORMS.map(p => <FilterChip key={p} label={p} active={filterPlatform === p} onClick={() => setFilterPlatform(filterPlatform === p ? '' : p)} />)}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground w-14 flex-shrink-0">Type</span>
+            <FilterChip label="All" active={!filterType} onClick={() => setFilterType('')} />
+            {CONTENT_TYPES.map(t => <FilterChip key={t} label={t} active={filterType === t} onClick={() => setFilterType(filterType === t ? '' : t)} />)}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground w-14 flex-shrink-0">Status</span>
+            <FilterChip label="All" active={!filterStatus} onClick={() => setFilterStatus('')} />
+            {ALL_STATUSES.map(s => <FilterChip key={s} label={s} active={filterStatus === s} onClick={() => setFilterStatus(filterStatus === s ? '' : s)} />)}
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground w-14 flex-shrink-0">Type</span>
-          <FilterChip label="All" active={!filterType} onClick={() => setFilterType('')} />
-          {CONTENT_TYPES.map(t => <FilterChip key={t} label={t} active={filterType === t} onClick={() => setFilterType(filterType === t ? '' : t)} />)}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground w-14 flex-shrink-0">Status</span>
-          <FilterChip label="All" active={!filterStatus} onClick={() => setFilterStatus('')} />
-          {ALL_STATUSES.map(s => <FilterChip key={s} label={s} active={filterStatus === s} onClick={() => setFilterStatus(filterStatus === s ? '' : s)} />)}
-        </div>
-      </div>
+      )}
 
-      {/* Board */}
-      <div ref={boardRef} className="overflow-x-auto pb-2 rounded-xl"
+      {/* ── Board ── */}
+      <div ref={boardRef} className="overflow-x-auto pb-3 rounded-xl"
         style={{ cursor: 'grab', scrollbarWidth: 'thin' }}
         onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp} onMouseLeave={onMouseUp}>
-        <div className="flex gap-0 min-w-max rounded-xl overflow-hidden border border-border bg-white" style={{ minHeight: 400 }}>
+        <div className="flex gap-0 min-w-max rounded-xl overflow-hidden border border-border bg-white" style={{ minHeight: 480 }}>
           {days.map((day, i) => {
-            const isToday     = sameDay(day, today)
-            const key         = dateKey(day)
-            const dayFiltered = filtered.filter(p => sameDay(new Date(p.publishDate), day))
+            const isToday      = sameDay(day, today)
+            const key          = dateKey(day)
+            const dayFiltered  = filtered.filter(p => sameDay(new Date(p.publishDate), day))
             const isDropTarget = dragOverKey === key
 
             return (
               <div key={i}
-                className={`flex flex-col border-r border-border last:border-r-0 relative ${isToday ? 'bg-navy/[0.03]' : 'bg-white'}`}
-                style={{ width: 200, minWidth: 200 }}
+                className={`flex flex-col border-r border-border last:border-r-0 relative transition-colors ${isToday ? 'bg-navy/[0.025]' : 'bg-white'}`}
+                style={{ width: 220, minWidth: 220 }}
                 onDragEnter={e => { e.preventDefault(); setDragOverKey(key) }}
                 onDragOver={e  => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }}
                 onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget)) setDragOverKey(null) }}
@@ -1026,27 +1110,45 @@ function WeekView({ posts, onSelect, weekStart, onPrev, onNext, onAttachFile, on
                   else if (isMediaFile(file)) onCreatePost(day, file)
                 }}
               >
-                <div className={`px-3 py-2.5 border-b border-border flex-shrink-0 ${isToday ? 'bg-navy' : 'bg-cream/40'}`}>
-                  <div className={`text-[0.57rem] font-semibold uppercase tracking-wider ${isToday ? 'text-white/70' : 'text-muted-foreground'}`}>{WEEKDAYS[i]}</div>
-                  <div className={`text-lg font-semibold leading-tight mt-0.5 ${isToday ? 'text-white' : 'text-ink'}`}>{day.getDate()}</div>
-                  <div className={`text-[0.58rem] ${isToday ? 'text-white/60' : 'text-muted-foreground'}`}>{MONTHS[day.getMonth()].slice(0,3)}</div>
+                {/* Day header */}
+                <div className={`px-4 py-3 border-b border-border flex-shrink-0 ${isToday ? 'bg-navy' : 'bg-cream/40'}`}>
+                  <div className={`text-xs font-semibold uppercase tracking-wider ${isToday ? 'text-white/70' : 'text-muted-foreground'}`}>
+                    {['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'][i]}
+                  </div>
+                  <div className={`text-2xl font-semibold leading-tight mt-0.5 font-display ${isToday ? 'text-white' : 'text-ink'}`}>
+                    {day.getDate()}
+                  </div>
+                  <div className={`text-xs mt-0.5 ${isToday ? 'text-white/60' : 'text-muted-foreground'}`}>
+                    {MONTHS[day.getMonth()].slice(0,3)}
+                  </div>
                 </div>
-                <div className="p-2 space-y-2 flex-1">
+
+                {/* Cards */}
+                <div className="p-3 space-y-3 flex-1 flex flex-col">
                   {dayFiltered.map(p => (
                     <WeekCard key={p.id} post={p} onSelect={onSelect} onFileDrop={file => onAttachFile(p.id, file)} />
                   ))}
-                  {dayFiltered.length === 0 && (
-                    <div className={`h-full min-h-[80px] rounded-lg border-2 border-dashed flex items-center justify-center transition-colors ${isDropTarget ? 'border-navy/40 bg-navy/[0.04]' : 'border-transparent'}`}>
-                      {isDropTarget && <span className="text-[0.6rem] text-navy/60 font-medium">+ Drop here</span>}
-                    </div>
-                  )}
+
+                  {/* Empty state / drop target */}
+                  <div
+                    className={`flex-1 min-h-[80px] rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-1 cursor-pointer transition-all group ${
+                      isDropTarget ? 'border-navy/40 bg-navy/[0.04]' : 'border-border hover:border-muted-foreground/30'
+                    }`}
+                    onClick={() => onCreatePost(day, null)}
+                  >
+                    <span className={`text-xl transition-colors ${isDropTarget ? 'text-navy/50' : 'text-muted-foreground/30 group-hover:text-muted-foreground/50'}`}>+</span>
+                    <span className={`text-xs transition-colors ${isDropTarget ? 'text-navy/60' : 'text-muted-foreground/40 group-hover:text-muted-foreground/60'}`}>
+                      {isDropTarget ? 'Drop to add' : 'Add content'}
+                    </span>
+                  </div>
                 </div>
               </div>
             )
           })}
         </div>
       </div>
-      <div className="text-center mt-3 text-[0.62rem] text-muted-foreground">
+
+      <div className="text-center mt-3 text-xs text-muted-foreground">
         Drag board to move across · Drag cards between days to reschedule
       </div>
     </div>
