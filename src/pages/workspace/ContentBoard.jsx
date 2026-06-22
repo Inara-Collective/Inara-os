@@ -661,9 +661,11 @@ function DetailPanel({ post, onClose, onStatusChange }) {
             <div className="text-sm text-ink leading-relaxed whitespace-pre-line">{post.caption}</div>
           </div>
 
-          {post.comments.length > 0 && (
-            <div className="rounded-md border border-border bg-white p-4">
-              <div className="text-[0.55rem] font-semibold uppercase tracking-wider text-muted-foreground mb-3">Comments ({post.comments.length})</div>
+          <div className="rounded-md border border-border bg-white p-4">
+            <div className="text-[0.55rem] font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+              Comments{post.comments.length > 0 ? ` (${post.comments.length})` : ''}
+            </div>
+            {post.comments.length > 0 && (
               <div className="space-y-4 mb-4">
                 {post.comments.map((c, i) => (
                   <div key={i} className="flex gap-3">
@@ -676,9 +678,9 @@ function DetailPanel({ post, onClose, onStatusChange }) {
                   </div>
                 ))}
               </div>
-              <input className="w-full text-sm border border-border rounded-md px-3 py-2 text-ink placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-navy" placeholder="Type a comment…" />
-            </div>
-          )}
+            )}
+            <input className="w-full text-sm border border-border rounded-md px-3 py-2 text-ink placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-navy" placeholder="Type a comment…" />
+          </div>
 
           <StickyNote note={post.notes} />
         </div>
@@ -856,15 +858,37 @@ function MonthMiniCard({ post, onSelect }) {
 }
 
 function DraggableMonthMiniCard({ post, onSelect, isActiveDrag }) {
-  const { attributes, listeners, setNodeRef } = useDraggable({ id: post.id })
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: post.id })
+  const startPos = useRef(null)
+
+  // dnd-kit's PointerSensor can suppress the 'click' event via preventDefault on
+  // pointerdown. Track pointer movement manually: if pointer didn't move more than
+  // 5px between down and up, treat it as a click and open the detail panel.
+  function handlePointerDown(e) {
+    startPos.current = { x: e.clientX, y: e.clientY }
+    listeners?.onPointerDown?.(e)
+  }
+  function handlePointerUp(e) {
+    if (!startPos.current) return
+    const moved = Math.hypot(e.clientX - startPos.current.x, e.clientY - startPos.current.y)
+    startPos.current = null
+    if (moved < 5) onSelect(post)
+  }
+
   return (
     <div
       ref={setNodeRef}
-      style={{ visibility: isActiveDrag ? 'hidden' : 'visible', touchAction: 'none', cursor: 'grab' }}
+      style={{
+        visibility: isActiveDrag ? 'hidden' : 'visible',
+        touchAction: 'none',
+        cursor: isDragging ? 'grabbing' : 'grab',
+      }}
       {...attributes}
       {...listeners}
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
     >
-      <MonthMiniCard post={post} onSelect={onSelect} />
+      <MonthMiniCard post={post} onSelect={() => {}} />
     </div>
   )
 }
