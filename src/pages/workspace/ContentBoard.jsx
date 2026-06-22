@@ -69,7 +69,7 @@ const CARD_BORDER = {
   'Needs Review':   '#DFBFB5',
 }
 
-const PLATFORMS     = ['Instagram','Facebook','LinkedIn','TikTok','Email','Blog','Website','YouTube','Pinterest']
+const PLATFORMS     = ['Instagram','Facebook','LinkedIn','LinkedIn Repost','TikTok','Email','Blog','Website','YouTube','Pinterest']
 const CONTENT_TYPES = ['Post','Reel','Carousel','Text Post','Story','Email','Blog','Ad','Campaign Asset']
 const ALL_STATUSES  = ['Idea Only','Draft','To Review','Being Reviewed','Needs Changes','Approved','Scheduled','Posted']
 const PILLARS       = ['Brand Story','Authority','Education','Behind the Scenes','Social Proof']
@@ -322,6 +322,32 @@ function fmtShort(d) {
 }
 function fmtDayLabel(d) {
   return new Date(d).toLocaleDateString('en-NZ', { weekday: 'short', day: 'numeric', month: 'short' })
+}
+function toDateInput(d) {
+  const date = new Date(d)
+  if (isNaN(date.getTime())) return ''
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+function toTimeInput(t) {
+  if (!t) return ''
+  const match = String(t).match(/^(\d+):(\d+)\s*(AM|PM)$/i)
+  if (!match) return t
+  let h = parseInt(match[1])
+  const min = match[2]
+  const period = match[3].toUpperCase()
+  if (period === 'PM' && h !== 12) h += 12
+  if (period === 'AM' && h === 12) h = 0
+  return `${String(h).padStart(2, '0')}:${min}`
+}
+function fromTimeInput(t) {
+  if (!t) return null
+  const [h, min] = t.split(':').map(Number)
+  const period = h >= 12 ? 'PM' : 'AM'
+  const h12 = h % 12 || 12
+  return `${h12}:${String(min).padStart(2, '0')} ${period}`
 }
 function fileIcon(ext) {
   if (ext === 'pdf') return '📄'
@@ -625,62 +651,73 @@ function BoardView({ posts, onSelect }) {
 }
 
 // ── Detail panel ───────────────────────────────────────────────────────────────
-function ApproverCard({ approver, onUpdateStatus, onSubmitComment }) {
+function ApproverCard({ approver, onUpdateStatus, onSubmitComment, onRemove }) {
   const [comment, setComment] = useState('')
   const meta = APPROVAL_STATUS_META[approver.status] || APPROVAL_STATUS_META.Pending
+
+  function submit() {
+    if (!comment.trim()) return
+    onSubmitComment(comment)
+    setComment('')
+  }
+
   return (
     <div className="rounded-lg p-3.5 space-y-2.5" style={{ background: '#FAFAF9', border: '1px solid #EDE9E5' }}>
-      {/* Header row */}
-      <div className="flex items-center gap-2.5">
+      {/* Header: avatar + name + status dropdown + quick approve + remove */}
+      <div className="flex items-center gap-2">
         <AvatarInitial name={approver.name} size={7} />
-        <span className="text-sm font-semibold text-ink flex-1 leading-none">{approver.name}</span>
-        <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[0.6rem] font-semibold"
-          style={{ background: meta.bg, color: meta.color }}>{approver.status}</span>
-      </div>
-      {/* Previous approver comments */}
-      {(approver.comments || []).map((c, i) => (
-        <div key={i} className="ml-9 text-xs text-ink leading-relaxed bg-white rounded-md px-3 py-2 border border-border/60">
-          "{c.text}" <span className="text-muted-foreground text-[0.6rem] ml-1">{c.time}</span>
+        <span className="text-sm font-semibold text-ink flex-1 leading-none min-w-0 truncate">{approver.name}</span>
+        {/* Status dropdown */}
+        <div className="relative">
+          <select
+            value={approver.status}
+            onChange={e => onUpdateStatus(e.target.value)}
+            className="text-[0.62rem] font-semibold rounded-full pl-2.5 pr-6 py-1 border-0 appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-navy/30"
+            style={{ background: meta.bg, color: meta.color }}>
+            <option>Pending</option>
+            <option>Approved</option>
+            <option>Changes Requested</option>
+          </select>
+          <span className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-[0.45rem]"
+            style={{ color: meta.color }}>▾</span>
         </div>
-      ))}
-      {/* Action buttons */}
-      <div className="flex items-center gap-2 ml-9 flex-wrap">
+        {/* Quick approve shortcut */}
         {approver.status !== 'Approved' && (
           <button
             onClick={() => onUpdateStatus('Approved')}
-            className="text-[0.65rem] font-semibold px-2.5 py-1 rounded-full transition-colors"
+            title="Approve"
+            className="w-6 h-6 flex items-center justify-center rounded-full text-[0.7rem] font-bold flex-shrink-0 transition-colors"
             style={{ background: '#DCEBDD', color: '#2E6B33' }}>
-            ✓ Approve
+            ✓
           </button>
         )}
-        {approver.status !== 'Changes Requested' && (
-          <button
-            onClick={() => onUpdateStatus('Changes Requested')}
-            className="text-[0.65rem] font-medium px-2.5 py-1 rounded-full transition-colors"
-            style={{ background: '#F6E6C8', color: '#7A4F00' }}>
-            Request changes
-          </button>
-        )}
-        {approver.status !== 'Pending' && (
-          <button
-            onClick={() => onUpdateStatus('Pending')}
-            className="text-[0.65rem] font-medium px-2.5 py-1 rounded-full transition-colors"
-            style={{ background: '#E8ECF0', color: '#6B7485' }}>
-            Reset
-          </button>
-        )}
+        {/* Remove approver */}
+        <button
+          onClick={onRemove}
+          title="Remove approver"
+          className="w-5 h-5 flex items-center justify-center rounded text-muted-foreground hover:text-ink hover:bg-cream transition-colors text-sm flex-shrink-0">
+          ×
+        </button>
       </div>
-      {/* Comment input */}
+
+      {/* Approver comment history */}
+      {(approver.comments || []).map((c, i) => (
+        <div key={i} className="ml-9 text-xs text-ink leading-relaxed bg-white rounded-md px-3 py-2 border border-border/60">
+          {c.text}
+          <span className="text-muted-foreground text-[0.58rem] ml-2">{c.time}</span>
+        </div>
+      ))}
+
+      {/* Per-approver comment input */}
       <div className="flex items-center gap-2 ml-9">
         <input
           value={comment}
           onChange={e => setComment(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); onSubmitComment(comment); setComment('') } }}
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); submit() } }}
           className="flex-1 text-xs border border-border rounded-md px-2.5 py-1.5 text-ink placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-navy bg-white"
           placeholder="Add a comment…"
         />
-        <button
-          onClick={() => { onSubmitComment(comment); setComment('') }}
+        <button onClick={submit}
           className="text-[0.65rem] font-medium text-navy hover:underline px-1">
           Send
         </button>
@@ -694,26 +731,33 @@ function DetailPanel({ post, onClose, onStatusChange, onUpdatePost }) {
   const [newApproverName, setNewApproverName] = useState('')
 
   if (!post) return null
-  const progress = PROGRESS_MAP[post.status] || 0
-  const hasVideo = post.attachedObjectUrl && post.attachedFile?.type?.startsWith('video/')
-  const hasImage = post.attachedObjectUrl && !hasVideo
-  const platforms = post.platforms || []
-  const approvers = post.approvers || []
-  const captionPlatforms = platforms.filter(p => CAPTION_PLATFORMS.includes(p))
 
+  const progress       = PROGRESS_MAP[post.status] || 0
+  const hasVideo       = post.attachedObjectUrl && post.attachedFile?.type?.startsWith('video/')
+  const hasImage       = post.attachedObjectUrl && !hasVideo
+  const platforms      = post.platforms || []
+  const approvers      = post.approvers || []
+  const captionPlats   = platforms.filter(p => CAPTION_PLATFORMS.includes(p))
+
+  function togglePlatform(p) {
+    const updated = platforms.includes(p)
+      ? platforms.filter(x => x !== p)
+      : [...platforms, p]
+    onUpdatePost(post.id, { platforms: updated })
+  }
   function patchApprover(approverId, patch) {
     onUpdatePost(post.id, {
       approvers: approvers.map(a => a.id === approverId ? { ...a, ...patch } : a),
     })
-  }
-  function handleApproverStatus(approverId, status) {
-    patchApprover(approverId, { status })
   }
   function handleApproverComment(approverId, text) {
     if (!text.trim()) return
     patchApprover(approverId, {
       comments: [...((approvers.find(a => a.id === approverId)?.comments) || []), { text, time: 'Just now' }],
     })
+  }
+  function removeApprover(approverId) {
+    onUpdatePost(post.id, { approvers: approvers.filter(a => a.id !== approverId) })
   }
   function addApprover() {
     if (!newApproverName.trim()) return
@@ -731,25 +775,38 @@ function DetailPanel({ post, onClose, onStatusChange, onUpdatePost }) {
         style={{ boxShadow: '-4px 0 32px rgba(50,54,66,0.14)' }}
         onClick={e => e.stopPropagation()}
       >
-        {/* ── Sticky header ── */}
-        <div className="sticky top-0 bg-white border-b border-border px-6 py-4 z-10 flex-shrink-0">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0 flex-1">
-              <h2 className="font-display text-xl text-ink leading-tight">{post.title}</h2>
-              {/* Platforms */}
-              <div className="flex items-center flex-wrap gap-1.5 mt-2">
-                {platforms.map(p => {
+
+        {/* ── Sticky header: editable title + platform toggles + close ── */}
+        <div className="sticky top-0 bg-white border-b border-border px-6 pt-4 pb-3 z-10 flex-shrink-0">
+          <div className="flex items-start gap-3">
+            <div className="flex-1 min-w-0">
+              <input
+                value={post.title}
+                onChange={e => onUpdatePost(post.id, { title: e.target.value })}
+                className="font-display text-xl text-ink leading-tight bg-transparent w-full border-b border-transparent hover:border-border focus:border-navy focus:outline-none transition-colors pb-0.5"
+                placeholder="Post title…"
+              />
+              {/* Platform toggle pills — all platforms, active = coloured */}
+              <div className="flex flex-wrap gap-1.5 mt-2.5">
+                {PLATFORMS.map(p => {
+                  const active = platforms.includes(p)
                   const m = PLATFORM_META[p] || PLATFORM_META_DEFAULT
                   return (
-                    <span key={p} className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[0.65rem] font-semibold"
-                      style={{ background: m.bg, color: m.color }}>{p}</span>
+                    <button
+                      key={p}
+                      onClick={() => togglePlatform(p)}
+                      className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[0.62rem] font-semibold transition-all border"
+                      style={active
+                        ? { background: m.bg, color: m.color, borderColor: m.color + '33' }
+                        : { background: 'transparent', color: '#C4C9D4', borderColor: '#E8ECF0' }
+                      }
+                    >{p}</button>
                   )
                 })}
-                <span className="text-[0.65rem] text-muted-foreground">{fmtDate(post.publishDate)}</span>
               </div>
             </div>
             <button onClick={onClose}
-              className="w-8 h-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-ink hover:bg-cream transition-colors text-sm flex-shrink-0">
+              className="w-8 h-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-ink hover:bg-cream transition-colors text-sm flex-shrink-0 mt-0.5">
               ✕
             </button>
           </div>
@@ -758,27 +815,34 @@ function DetailPanel({ post, onClose, onStatusChange, onUpdatePost }) {
         {/* ── Scrollable body ── */}
         <div className="p-6 space-y-5 flex-1">
 
-          {/* Status + type + pillar row */}
+          {/* Status + Content Type + Pillar + progress % */}
           <div className="flex items-center gap-2 flex-wrap">
-            <label className="text-[0.55rem] font-semibold uppercase tracking-wider text-muted-foreground sr-only">Status</label>
+            {/* Status */}
             <div className="relative">
               <select
                 value={post.status}
                 onChange={e => onStatusChange(post.id, e.target.value)}
-                className="text-xs font-semibold rounded-full pl-3 pr-7 py-1.5 border-0 appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-navy/30"
-                style={{
-                  background: STATUS_TAG[post.status]?.bg || '#E7E2DB',
-                  color: STATUS_TAG[post.status]?.color || '#323642',
-                }}>
+                className="text-xs font-semibold rounded-full pl-3 pr-7 py-1.5 border-0 appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-navy/25"
+                style={{ background: STATUS_TAG[post.status]?.bg || '#E7E2DB', color: STATUS_TAG[post.status]?.color || '#323642' }}>
                 {ALL_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
-              <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[0.5rem]" style={{ color: STATUS_TAG[post.status]?.color || '#323642' }}>▾</span>
+              <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[0.48rem]"
+                style={{ color: STATUS_TAG[post.status]?.color || '#323642' }}>▾</span>
             </div>
-            {post.contentType && (
-              <span className="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium border" style={{ background: '#fff', color: '#323642', borderColor: '#A6AAB5' }}>{post.contentType}</span>
-            )}
+            {/* Content Type */}
+            <div className="relative">
+              <select
+                value={post.contentType || ''}
+                onChange={e => onUpdatePost(post.id, { contentType: e.target.value })}
+                className="text-xs font-medium rounded-full pl-3 pr-7 py-1.5 border appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-navy/30 transition-colors"
+                style={{ background: '#fff', color: '#323642', borderColor: '#B7C1CB' }}>
+                {CONTENT_TYPES.map(ct => <option key={ct} value={ct}>{ct}</option>)}
+              </select>
+              <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[0.48rem] text-muted-foreground">▾</span>
+            </div>
             {post.pillar && (
-              <span className="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium" style={{ background: '#F4EFE9', color: '#5F4030' }}>{post.pillar}</span>
+              <span className="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium"
+                style={{ background: '#F4EFE9', color: '#5F4030' }}>{post.pillar}</span>
             )}
             <span className="text-xs text-muted-foreground ml-auto">{progress}%</span>
           </div>
@@ -787,6 +851,35 @@ function DetailPanel({ post, onClose, onStatusChange, onUpdatePost }) {
           <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: '#E8ECF0' }}>
             <div className="h-full rounded-full transition-all duration-300"
               style={{ width: `${progress}%`, background: progress === 100 ? '#BABEAF' : '#424B63' }} />
+          </div>
+
+          {/* Schedule */}
+          <div className="rounded-md border border-border bg-white p-4">
+            <div className="text-[0.55rem] font-semibold uppercase tracking-wider text-muted-foreground mb-3">Schedule</div>
+            <div className="flex items-end gap-4 flex-wrap">
+              <div className="flex flex-col gap-1">
+                <label className="text-[0.6rem] text-muted-foreground">Publish date</label>
+                <input
+                  type="date"
+                  value={toDateInput(post.publishDate)}
+                  onChange={e => {
+                    if (!e.target.value) return
+                    const [y, m, d] = e.target.value.split('-').map(Number)
+                    onUpdatePost(post.id, { publishDate: new Date(y, m - 1, d) })
+                  }}
+                  className="text-sm border border-border rounded-md px-3 py-1.5 text-ink focus:outline-none focus:ring-1 focus:ring-navy cursor-pointer"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[0.6rem] text-muted-foreground">Time</label>
+                <input
+                  type="time"
+                  value={toTimeInput(post.scheduleTime)}
+                  onChange={e => onUpdatePost(post.id, { scheduleTime: fromTimeInput(e.target.value) })}
+                  className="text-sm border border-border rounded-md px-3 py-1.5 text-ink focus:outline-none focus:ring-1 focus:ring-navy cursor-pointer"
+                />
+              </div>
+            </div>
           </div>
 
           {/* Concept */}
@@ -809,15 +902,15 @@ function DetailPanel({ post, onClose, onStatusChange, onUpdatePost }) {
           {/* Files */}
           {(post.files || []).map((f, i) => <FileCard key={i} file={f} />)}
 
-          {/* Per-platform captions */}
-          {captionPlatforms.length > 0 && (
+          {/* Per-platform captions — one textarea per selected caption-eligible platform */}
+          {captionPlats.length > 0 && (
             <div className="space-y-3">
               <div className="text-[0.55rem] font-semibold uppercase tracking-wider text-muted-foreground">Captions</div>
-              {captionPlatforms.map(platform => {
+              {captionPlats.map(platform => {
                 const m = PLATFORM_META[platform] || PLATFORM_META_DEFAULT
                 return (
                   <div key={platform} className="rounded-md border border-border bg-white p-4">
-                    <div className="flex items-center gap-2 mb-2.5">
+                    <div className="mb-2.5">
                       <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[0.62rem] font-semibold"
                         style={{ background: m.bg, color: m.color }}>{platform}</span>
                     </div>
@@ -857,8 +950,9 @@ function DetailPanel({ post, onClose, onStatusChange, onUpdatePost }) {
                 <ApproverCard
                   key={approver.id}
                   approver={approver}
-                  onUpdateStatus={status => handleApproverStatus(approver.id, status)}
+                  onUpdateStatus={status => patchApprover(approver.id, { status })}
                   onSubmitComment={text => handleApproverComment(approver.id, text)}
+                  onRemove={() => removeApprover(approver.id)}
                 />
               ))}
             </div>
