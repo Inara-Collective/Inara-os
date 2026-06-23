@@ -1141,7 +1141,7 @@ function ContentHubOverview({ posts, month, year, onGoToMonth, onGoToWeek, weekS
   return (
     <div className="space-y-7">
       <div>
-        <h2 className="font-display text-3xl text-ink">Content Hub Overview</h2>
+        <h2 className="font-display text-3xl text-ink">Marketing Hub Overview</h2>
         <p className="text-sm text-muted-foreground mt-1">Here you can see all content planned, in progress and published.</p>
       </div>
 
@@ -1986,7 +1986,7 @@ export default function ContentBoard({ client }) {
       {/* Top nav */}
       <div className="flex items-center justify-between mb-7">
         <div>
-          <h2 className="font-display text-2xl text-ink">Content Hub</h2>
+          <h2 className="font-display text-2xl text-ink">Marketing Hub</h2>
           <p className="text-xs text-muted-foreground mt-0.5">Plan, track and collaborate on every piece of content.</p>
         </div>
         <div className="flex items-center gap-1 bg-cream rounded-lg p-1 border border-border">

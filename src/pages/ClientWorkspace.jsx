@@ -11,7 +11,7 @@ const SECTIONS = [
   { id: 'meetings',     label: 'Meetings' },
   { id: 'onboarding',   label: 'Onboarding' },
   { id: 'deliverables', label: 'Monthly Deliverables' },
-  { id: 'content',      label: 'Content Hub' },
+  { id: 'content',      label: 'Marketing Hub' },
   { id: 'review',       label: 'Content Review' },
   { id: 'email',        label: 'Email Marketing' },
   { id: 'website',      label: 'Website' },

@@ -459,7 +459,7 @@ export default function ClientDetail() {
     ? ['overview','tasks','onboarding','notes','emails']
     : ['home','content','deliverables','website','email','system','reporting','tasks','notes','comments']
 
-  const TAB_LABELS = { home:'Client Home', content:'Content Hub', deliverables:'Deliverables', website:'Website Board', email:'Email Marketing', system:'System Building', reporting:'Reporting', tasks:'Tasks', notes:'Notes', comments:'Comments', overview:'Overview', diagnosis:'Diagnosis', proposal:'Proposal', onboarding:'Onboarding', emails:'Emails', suggestions:'Suggestions', package:'Package' }
+  const TAB_LABELS = { home:'Client Home', content:'Marketing Hub', deliverables:'Deliverables', website:'Website Board', email:'Email Marketing', system:'System Building', reporting:'Reporting', tasks:'Tasks', notes:'Notes', comments:'Comments', overview:'Overview', diagnosis:'Diagnosis', proposal:'Proposal', onboarding:'Onboarding', emails:'Emails', suggestions:'Suggestions', package:'Package' }
   const ONBOARDING_ITEMS = ['Contract signed','Invoice sent','Invoice paid','Welcome email sent','Client board created','Brand questionnaire sent','Access requested','Assets received','Kickoff call booked','Strategy call scheduled','Client folder created','Team briefed']
   const doneOnboarding = (client.onboarding_done||'').split(',').map(s=>s.trim()).filter(Boolean)
   const toggleOnboarding = (item) => {
@@ -1090,7 +1090,7 @@ export default function ClientDetail() {
                   <div style={{ fontSize:'.52rem', letterSpacing:'.18em', textTransform:'uppercase', color:'var(--muted)', fontWeight:600, marginBottom:'.75rem' }}>Quick Access</div>
                   <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'.5rem' }}>
                     {[
-                      { key:'content', label:'Content Hub', icon:'◈' },
+                      { key:'content', label:'Marketing Hub', icon:'◈' },
                       { key:'deliverables', label:'Deliverables', icon:'▦' },
                       { key:'website', label:'Website Board', icon:'→' },
                       { key:'email', label:'Email Marketing', icon:'✉' },
@@ -1208,7 +1208,7 @@ export default function ClientDetail() {
             <div>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'1.25rem' }}>
                 <div>
-                  <div style={{ fontFamily:'Cormorant Garamond,Georgia,serif', fontSize:'1.6rem', fontWeight:400 }}>Content Hub</div>
+                  <div style={{ fontFamily:'Cormorant Garamond,Georgia,serif', fontSize:'1.6rem', fontWeight:400 }}>Marketing Hub</div>
                   <div style={{ fontSize:'.85rem', color:'var(--muted)' }}>Track content ideas, drafts, and published pieces for {client.name?.split(' ')[0]}. Also visible on the global Content Board.</div>
                 </div>
                 <button className="btn btn-primary" onClick={()=>setShowAddContent(v=>!v)}>+ Add Content</button>
