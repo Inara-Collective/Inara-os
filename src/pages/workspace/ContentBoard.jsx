@@ -729,6 +729,7 @@ function ApproverCard({ approver, onUpdateStatus, onSubmitComment, onRemove }) {
 function DetailPanel({ post, onClose, onStatusChange, onUpdatePost }) {
   const [showAddApprover, setShowAddApprover] = useState(false)
   const [newApproverName, setNewApproverName] = useState('')
+  const [conceptOpen, setConceptOpen] = useState(false)
 
   if (!post) return null
 
@@ -882,16 +883,30 @@ function DetailPanel({ post, onClose, onStatusChange, onUpdatePost }) {
             </div>
           </div>
 
-          {/* Concept */}
-          <div className="rounded-md border border-border bg-white p-4">
-            <div className="text-[0.55rem] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Concept</div>
-            <textarea
-              value={post.concept || ''}
-              onChange={e => onUpdatePost(post.id, { concept: e.target.value })}
-              placeholder="What's the idea or thinking behind this content?"
-              rows={3}
-              className="w-full text-sm text-ink leading-relaxed resize-none focus:outline-none focus:ring-1 focus:ring-navy rounded-sm placeholder:text-muted-foreground/50"
-            />
+          {/* Concept — collapsible accordion */}
+          <div className="rounded-md border border-border bg-white overflow-hidden">
+            <button
+              onClick={() => setConceptOpen(o => !o)}
+              className="w-full flex items-center justify-between px-4 py-3 text-left group hover:bg-cream/60 transition-colors"
+            >
+              <span className="text-[0.55rem] font-semibold uppercase tracking-wider text-muted-foreground group-hover:text-ink transition-colors">Concept</span>
+              <span
+                className="text-muted-foreground text-xs transition-transform duration-200"
+                style={{ transform: conceptOpen ? 'rotate(180deg)' : 'rotate(0deg)', display: 'inline-block' }}
+              >▾</span>
+            </button>
+            {conceptOpen && (
+              <div className="px-4 pb-4">
+                <textarea
+                  autoFocus
+                  value={post.concept || ''}
+                  onChange={e => onUpdatePost(post.id, { concept: e.target.value })}
+                  placeholder="What's the idea or thinking behind this content?"
+                  rows={5}
+                  className="w-full text-sm text-ink leading-relaxed resize-none focus:outline-none focus:ring-1 focus:ring-navy rounded-sm placeholder:text-muted-foreground/50"
+                />
+              </div>
+            )}
           </div>
 
           {/* Media */}
