@@ -2011,6 +2011,186 @@ function WeekView({ posts, onSelect, weekStart, onPrev, onNext, onAttachFile, on
   )
 }
 
+// ── Kanban (Board) view ────────────────────────────────────────────────────────
+const KANBAN_COLUMNS = [
+  { key: 'idea',      label: 'Idea',      statuses: ['Idea Only'],                   dropStatus: 'Idea Only',  headerBg: '#EDE8E2', headerColor: '#5F6368' },
+  { key: 'draft',     label: 'Draft',     statuses: ['Draft', 'Needs Changes'],      dropStatus: 'Draft',      headerBg: '#DDE3E8', headerColor: '#4A5568' },
+  { key: 'review',    label: 'To Review', statuses: ['To Review', 'Being Reviewed'], dropStatus: 'To Review',  headerBg: '#C8D8EC', headerColor: '#2A3F6A' },
+  { key: 'approved',  label: 'Approved',  statuses: ['Approved'],                    dropStatus: 'Approved',   headerBg: '#C4D4C0', headerColor: '#2A4A2C' },
+  { key: 'scheduled', label: 'Scheduled', statuses: ['Scheduled'],                   dropStatus: 'Scheduled',  headerBg: '#C0CEDF', headerColor: '#2A3F6A' },
+  { key: 'posted',    label: 'Posted',    statuses: ['Posted'],                      dropStatus: 'Posted',     headerBg: '#B5C1AF', headerColor: '#1E3820' },
+]
+
+function KanbanCard({ post, onSelect }) {
+  const cfg = STATUS_CFG[post.status] || STATUS_CFG.Draft
+  const isAttachedImage = post.attachedObjectUrl && !post.attachedFile?.type?.startsWith('video/')
+
+  return (
+    <div
+      data-kanban-card
+      draggable
+      onDragStart={e => {
+        e.dataTransfer.setData('postId', String(post.id))
+        e.dataTransfer.effectAllowed = 'move'
+      }}
+      className="rounded-xl overflow-hidden select-none bg-white transition-shadow hover:shadow-md"
+      style={{ border: '1px solid #EDE9E5', boxShadow: '0 1px 4px rgba(50,54,66,0.07)', cursor: 'grab' }}
+    >
+      {/* Thumbnail */}
+      <div className="relative overflow-hidden flex items-center justify-center"
+        style={{ height: 78, background: `linear-gradient(135deg, ${post.gradientFrom}, ${post.gradientTo})` }}>
+        {isAttachedImage && (
+          <img src={post.attachedObjectUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
+        )}
+        {post.isVideo && !isAttachedImage && (
+          <div className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.3)' }}>
+            <span className="text-white text-xs ml-0.5">▶</span>
+          </div>
+        )}
+        {/* Thin status strip along top edge */}
+        <div className="absolute top-0 left-0 right-0 h-[3px]" style={{ background: cfg.bg }} />
+        {/* Platform strip at bottom */}
+        <div className="absolute bottom-0 left-0 right-0 px-2 py-1" style={{ background: 'rgba(50,54,66,0.30)' }}>
+          <span className="text-[0.5rem] text-white font-medium leading-none">
+            {(post.platforms || []).slice(0, 3).join(', ')}
+            {(post.platforms?.length || 0) > 3 ? ` +${post.platforms.length - 3}` : ''}
+          </span>
+        </div>
+      </div>
+
+      {/* Body — button so the whole area is clickable */}
+      <button
+        onClick={() => onSelect(post)}
+        className="text-left w-full p-3 space-y-2 group"
+      >
+        <div className="text-[0.8rem] font-semibold text-ink group-hover:text-navy transition-colors leading-snug line-clamp-2">
+          {post.title}
+        </div>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <StatusPill status={post.status} size="xs" />
+          {post.contentType && (
+            <span className="text-[0.58rem] text-muted-foreground rounded-full px-2 py-0.5 border border-border/60"
+              style={{ background: '#F4F0EE' }}>
+              {post.contentType}
+            </span>
+          )}
+        </div>
+        <div className="text-[0.6rem] text-muted-foreground">{fmtDate(post.publishDate)}</div>
+        {(post.comments?.length > 0 || post.files?.length > 0) && (
+          <div className="flex items-center gap-2.5 text-[0.6rem] text-muted-foreground">
+            {post.comments?.length > 0 && (
+              <span className="flex items-center gap-0.5">
+                <span>💬</span> {post.comments.length}
+              </span>
+            )}
+            {post.files?.length > 0 && (
+              <span className="flex items-center gap-0.5">
+                <span>📎</span> {post.files.length}
+              </span>
+            )}
+          </div>
+        )}
+      </button>
+    </div>
+  )
+}
+
+function KanbanView({ posts, onSelect, onUpdateStatus }) {
+  const [dragOverCol,   setDragOverCol]   = useState(null)
+  const [dragInsertIdx, setDragInsertIdx] = useState(0)
+
+  function computeInsertIdx(clientY, colKey) {
+    const cards = document.querySelectorAll(`[data-kanban-col="${colKey}"] [data-kanban-card]`)
+    let idx = 0
+    for (const card of cards) {
+      const rect = card.getBoundingClientRect()
+      if (clientY > rect.top + rect.height / 2) idx++
+      else break
+    }
+    return idx
+  }
+
+  return (
+    <div>
+      {/* Header */}
+      <div className="mb-6">
+        <h2 className="font-display text-3xl text-ink">Board</h2>
+        <p className="text-sm text-muted-foreground mt-1">Content by stage — drag a card to move it between stages.</p>
+      </div>
+
+      {/* Kanban columns */}
+      <div className="overflow-x-auto pb-6 -mx-6 px-6" style={{ scrollbarWidth: 'thin' }}>
+        <div className="flex gap-4 min-w-max items-start">
+          {KANBAN_COLUMNS.map(col => {
+            const colPosts = posts.filter(p => col.statuses.includes(p.status))
+            const isOver   = dragOverCol === col.key
+
+            return (
+              <div key={col.key} className="w-[272px] flex-shrink-0 flex flex-col">
+                {/* Column header */}
+                <div
+                  className="rounded-t-xl px-4 py-3 flex items-center justify-between"
+                  style={{ background: col.headerBg, border: '1px solid rgba(50,54,66,0.10)', borderBottom: 'none' }}
+                >
+                  <span className="text-sm font-semibold leading-none" style={{ color: col.headerColor }}>
+                    {col.label}
+                  </span>
+                  <span
+                    className="text-xs font-semibold rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0"
+                    style={{ background: 'rgba(255,255,255,0.55)', color: col.headerColor }}>
+                    {colPosts.length}
+                  </span>
+                </div>
+
+                {/* Column body — droppable */}
+                <div
+                  data-kanban-col={col.key}
+                  className="flex-1 rounded-b-xl border border-t-0 p-3 space-y-3 transition-colors duration-150"
+                  style={{
+                    borderColor: isOver ? col.headerBg : '#EDE9E5',
+                    background:  isOver ? col.headerBg + 'AA' : 'rgba(244,240,238,0.35)',
+                    minHeight:   240,
+                  }}
+                  onDragEnter={e => { e.preventDefault(); setDragOverCol(col.key) }}
+                  onDragOver={e => {
+                    e.preventDefault()
+                    e.dataTransfer.dropEffect = 'move'
+                    setDragOverCol(col.key)
+                    setDragInsertIdx(computeInsertIdx(e.clientY, col.key))
+                  }}
+                  onDragLeave={e => {
+                    if (!e.currentTarget.contains(e.relatedTarget)) setDragOverCol(null)
+                  }}
+                  onDrop={e => {
+                    e.preventDefault()
+                    setDragOverCol(null)
+                    const postId = e.dataTransfer.getData('postId')
+                    if (postId) onUpdateStatus(parseInt(postId, 10), col.dropStatus)
+                  }}
+                >
+                  {colPosts.map((post, i) => (
+                    <React.Fragment key={post.id}>
+                      {isOver && dragInsertIdx === i && <DropLine horizontal />}
+                      <KanbanCard post={post} onSelect={onSelect} />
+                    </React.Fragment>
+                  ))}
+                  {isOver && dragInsertIdx === colPosts.length && <DropLine horizontal />}
+
+                  {colPosts.length === 0 && !isOver && (
+                    <div className="flex items-center justify-center py-10">
+                      <span className="text-xs text-muted-foreground/40 italic">Nothing here yet</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Main ContentBoard ──────────────────────────────────────────────────────────
 export default function ContentBoard({ client }) {
   const [view,            setView]           = useState('overview')
@@ -2077,6 +2257,7 @@ export default function ContentBoard({ client }) {
     { key: 'overview', label: 'Overview' },
     { key: 'month',    label: 'Month' },
     { key: 'week',     label: 'Week' },
+    { key: 'board',    label: 'Board' },
   ]
 
   return (
@@ -2120,6 +2301,14 @@ export default function ContentBoard({ client }) {
           onAttachFile={attachFileToPosts} onCreatePost={createPostFromDrop} onMovePost={movePost}
           initialStatus={initialStatus}
           initialPlatform={initialPlatform}
+        />
+      )}
+
+      {view === 'board' && (
+        <KanbanView
+          posts={posts}
+          onSelect={p => setSelectedId(p.id)}
+          onUpdateStatus={updateStatus}
         />
       )}
 
