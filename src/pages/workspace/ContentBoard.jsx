@@ -1196,6 +1196,54 @@ const TILE_NAV = {
   websiteUpdates: { view: 'website'                        },
 }
 
+function PlatformIcon({ name }) {
+  const s = { width: 20, height: 20, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '1.8', strokeLinecap: 'round', strokeLinejoin: 'round' }
+  switch (name) {
+    case 'all': return (
+      <svg {...s}><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+    )
+    case 'instagram': return (
+      <svg {...s}><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><circle cx="12" cy="12" r="5"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>
+    )
+    case 'facebook': return (
+      <svg {...s}><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+    )
+    case 'linkedin': return (
+      <svg {...s}><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-4 0v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>
+    )
+    case 'tiktok': return (
+      <svg {...s}><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+    )
+    case 'email': return (
+      <svg {...s}><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+    )
+    case 'blog': return (
+      <svg {...s}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+    )
+    case 'website': return (
+      <svg {...s}><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+    )
+    case 'cal-month': return (
+      <svg {...s}><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><circle cx="8" cy="15" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="15" r="1" fill="currentColor" stroke="none"/><circle cx="16" cy="15" r="1" fill="currentColor" stroke="none"/><circle cx="8" cy="19" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1" fill="currentColor" stroke="none"/></svg>
+    )
+    case 'cal-week': return (
+      <svg {...s}><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><rect x="4" y="13" width="16" height="5" rx="1" fill="currentColor" strokeWidth="0" opacity="0.2"/></svg>
+    )
+    default: return null
+  }
+}
+
+const PLATFORM_BROWSE = [
+  { key: 'all',       label: 'All Content', description: 'Every piece of content across all platforms',   nav: { view: 'week' } },
+  { key: 'instagram', label: 'Instagram',   description: 'Posts, Reels, Stories & more',                  nav: { view: 'week', platform: 'Instagram' } },
+  { key: 'facebook',  label: 'Facebook',    description: 'Posts, Stories & campaigns',                    nav: { view: 'week', platform: 'Facebook'  } },
+  { key: 'linkedin',  label: 'LinkedIn',    description: 'Posts, articles & reposts',                     nav: { view: 'week', platform: 'LinkedIn'  } },
+  { key: 'tiktok',    label: 'TikTok',      description: 'Short-form video content',                      nav: { view: 'week', platform: 'TikTok'    } },
+  { key: 'email',     label: 'Email',       description: 'Newsletters & campaigns',                       nav: { view: 'week', platform: 'Email'     } },
+  { key: 'blog',      label: 'Blog',        description: 'Long-form articles & posts',                    nav: { view: 'week', platform: 'Blog'      } },
+  { key: 'website',   label: 'Website',     description: 'Updates, pages & optimisations',               nav: { view: 'website' } },
+]
+
 function ContentHubOverview({ onNavigate }) {
   const [channel, setChannel] = useState('All')
 
@@ -1215,7 +1263,7 @@ function ContentHubOverview({ onNavigate }) {
   ]
 
   return (
-    <div className="space-y-7">
+    <div className="space-y-10">
       {/* Heading */}
       <div>
         <h2 className="font-display text-3xl text-ink">Marketing Hub Overview</h2>
@@ -1289,6 +1337,64 @@ function ContentHubOverview({ onNavigate }) {
             </button>
           )
         })}
+      </div>
+
+      {/* ── Browse by Platform ── */}
+      <div>
+        <div className="mb-5">
+          <h3 className="font-display text-xl text-ink">Browse by Platform</h3>
+          <p className="text-sm text-muted-foreground mt-1">View and manage content for each platform.</p>
+        </div>
+        <div className="grid grid-cols-4 gap-4">
+          {PLATFORM_BROWSE.map(p => (
+            <button
+              key={p.key}
+              onClick={() => onNavigate(p.nav)}
+              className="text-left rounded-xl p-5 flex flex-col gap-4 group transition-all hover:shadow-md bg-white"
+              style={{ border: '1px solid #EDE9E5', boxShadow: '0 1px 4px rgba(50,54,66,0.07)' }}
+            >
+              <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+                style={{ background: '#F4F0EE', color: '#323642' }}>
+                <PlatformIcon name={p.key} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold text-ink group-hover:text-navy transition-colors leading-snug">{p.label}</div>
+                <div className="text-xs text-muted-foreground mt-1 leading-relaxed">{p.description}</div>
+              </div>
+              <div className="text-muted-foreground group-hover:text-navy transition-colors text-sm">→</div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Content Calendar ── */}
+      <div className="rounded-xl bg-white p-6" style={{ border: '1px solid #EDE9E5', boxShadow: '0 1px 4px rgba(50,54,66,0.07)' }}>
+        <div className="mb-5">
+          <h3 className="font-display text-xl text-ink">View your content calendar</h3>
+          <p className="text-sm text-muted-foreground mt-1">See your content laid out by month or week.</p>
+        </div>
+        <div className="divide-y divide-border -mx-2">
+          {[
+            { view: 'month', iconKey: 'cal-month', label: 'Month View', description: 'See your content at a monthly glance' },
+            { view: 'week',  iconKey: 'cal-week',  label: 'Week View',  description: 'Plan and review your week'            },
+          ].map(row => (
+            <button
+              key={row.view}
+              onClick={() => onNavigate({ view: row.view })}
+              className="w-full flex items-center gap-4 py-4 px-3 text-left group rounded-lg hover:bg-cream/60 transition-colors"
+            >
+              <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+                style={{ background: '#F4F0EE', color: '#323642' }}>
+                <PlatformIcon name={row.iconKey} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold text-ink group-hover:text-navy transition-colors">{row.label}</div>
+                <div className="text-xs text-muted-foreground mt-0.5">{row.description}</div>
+              </div>
+              <span className="text-muted-foreground group-hover:text-navy transition-colors text-base flex-shrink-0">→</span>
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   )
