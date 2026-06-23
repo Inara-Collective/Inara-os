@@ -1117,88 +1117,130 @@ function DetailPanel({ post, onClose, onStatusChange, onUpdatePost }) {
 }
 
 // ── Overview ──────────────────────────────────────────────────────────────────
-function ContentHubOverview({ posts, month, year, onGoToMonth, onGoToWeek, weekStart }) {
-  const thisMonthPosts = posts.filter(p => {
-    const d = new Date(p.publishDate)
-    return d.getMonth() === month && d.getFullYear() === year
-  })
-  const stats = [
-    { icon: '📅', value: thisMonthPosts.length,                                          label: 'This Month' },
-    { icon: '👁',  value: thisMonthPosts.filter(p => p.status === 'To Review').length,    label: 'To Review' },
-    { icon: '🗓',  value: thisMonthPosts.filter(p => p.status === 'Scheduled').length,    label: 'Scheduled' },
-    { icon: '✓',  value: thisMonthPosts.filter(p => p.status === 'Posted').length,        label: 'Published' },
-  ]
-  const nextMonth = month === 11 ? 0 : month + 1
-  const nextYear  = month === 11 ? year + 1 : year
+// ── Marketing Hub Overview ─────────────────────────────────────────────────────
+const OVERVIEW_CHANNELS = ['All', 'Social', 'Email', 'Website', 'Campaigns', 'Meta Ads']
 
-  const quickLinks = [
-    { title: `This Month`,        sub: `${MONTHS[month]} ${year}`,        icon: '📅', action: onGoToMonth },
-    { title: 'Next Month',        sub: `${MONTHS[nextMonth]} ${nextYear}`, icon: '📆', action: onGoToMonth },
-    { title: 'Content Calendar',  sub: 'View full calendar',               icon: '◫',  action: onGoToMonth },
-    { title: 'Content Ideas',     sub: 'Upcoming topics',                  icon: '💡', action: () => {} },
+// Static mock counts per channel — numbers change on tab switch
+const CHANNEL_MOCKS = {
+  All: {
+    toCreate: 0, toEdit: 1, toReview: 3, inProgress: 2,
+    overdue: 3, scheduled: 0, published: 8,
+    metaAds: 2, campaigns: 1, websiteUpdates: 3,
+  },
+  Social: {
+    toCreate: 0, toEdit: 1, toReview: 3, inProgress: 1,
+    overdue: 3, scheduled: 0, published: 8,
+    metaAds: 0, campaigns: 0, websiteUpdates: 0,
+  },
+  Email: {
+    toCreate: 1, toEdit: 0, toReview: 0, inProgress: 1,
+    overdue: 0, scheduled: 0, published: 0,
+    metaAds: 0, campaigns: 0, websiteUpdates: 0,
+  },
+  Website: {
+    toCreate: 0, toEdit: 0, toReview: 1, inProgress: 0,
+    overdue: 1, scheduled: 0, published: 0,
+    metaAds: 0, campaigns: 0, websiteUpdates: 3,
+  },
+  Campaigns: {
+    toCreate: 2, toEdit: 1, toReview: 2, inProgress: 3,
+    overdue: 0, scheduled: 2, published: 4,
+    metaAds: 0, campaigns: 3, websiteUpdates: 0,
+  },
+  'Meta Ads': {
+    toCreate: 3, toEdit: 2, toReview: 1, inProgress: 2,
+    overdue: 1, scheduled: 3, published: 12,
+    metaAds: 5, campaigns: 0, websiteUpdates: 0,
+  },
+}
+
+function ContentHubOverview({ onGoToMonth, onGoToWeek }) {
+  const [channel, setChannel] = useState('All')
+
+  const m = CHANNEL_MOCKS[channel] || CHANNEL_MOCKS.All
+
+  const tiles = [
+    { key: 'toCreate',       label: 'Content to create',       value: m.toCreate,       warn: false },
+    { key: 'toEdit',         label: 'Content to edit',         value: m.toEdit,         warn: false },
+    { key: 'toReview',       label: 'Content to review',       value: m.toReview,       warn: false },
+    { key: 'inProgress',     label: 'Content in progress',     value: m.inProgress,     warn: false },
+    { key: 'overdue',        label: 'Content overdue',         value: m.overdue,        warn: true  },
+    { key: 'scheduled',      label: 'Content scheduled',       value: m.scheduled,      warn: false },
+    { key: 'published',      label: 'Content published',       value: m.published,      warn: false },
+    { key: 'metaAds',        label: 'Active Meta ads',         value: m.metaAds,        warn: false },
+    { key: 'campaigns',      label: 'Active campaigns',        value: m.campaigns,      warn: false },
+    { key: 'websiteUpdates', label: 'Current website updates', value: m.websiteUpdates, warn: false },
   ]
 
   return (
     <div className="space-y-7">
+      {/* Heading */}
       <div>
         <h2 className="font-display text-3xl text-ink">Marketing Hub Overview</h2>
-        <p className="text-sm text-muted-foreground mt-1">Here you can see all content planned, in progress and published.</p>
+        <p className="text-sm text-muted-foreground mt-1">All your content, channels and campaigns at a glance.</p>
       </div>
 
-      {/* Stat tiles */}
-      <div className="grid grid-cols-4 gap-4">
-        {stats.map((s, i) => (
-          <button key={i} onClick={onGoToMonth}
-            className="card p-5 text-left hover:shadow-md transition-all group flex flex-col gap-2">
-            <div className="text-2xl">{s.icon}</div>
-            <div className="font-display text-4xl text-ink leading-none">{s.value}</div>
-            <div className="text-xs text-muted-foreground">{s.label}</div>
-          </button>
-        ))}
-      </div>
-
-      {/* Quick links */}
-      <div>
-        <div className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground mb-3">Quick links</div>
-        <div className="grid grid-cols-4 gap-4">
-          {quickLinks.map((l, i) => (
-            <button key={i} onClick={l.action}
-              className="card p-5 text-left hover:shadow-md transition-all group flex flex-col gap-2">
-              <div className="text-xl">{l.icon}</div>
-              <div className="text-sm font-semibold text-ink group-hover:text-navy transition-colors leading-snug">{l.title}</div>
-              <div className="text-xs text-muted-foreground">{l.sub}</div>
+      {/* Channel tabs */}
+      <div className="flex flex-wrap gap-2">
+        {OVERVIEW_CHANNELS.map(ch => {
+          const active = channel === ch
+          return (
+            <button
+              key={ch}
+              onClick={() => setChannel(ch)}
+              className="rounded-full px-4 py-1.5 text-sm font-medium border transition-all whitespace-nowrap"
+              style={{
+                background:  active ? '#DAE6F6' : '#FFFFFF',
+                color:       active ? '#2A3F6A' : '#8C95A3',
+                borderColor: active ? '#B8CDED' : '#E7E2DB',
+              }}
+            >
+              {ch}
             </button>
-          ))}
-        </div>
+          )
+        })}
       </div>
 
-      {/* Quote banner */}
-      <div className="rounded-xl p-7 flex items-center gap-8" style={{ background: 'linear-gradient(120deg, #F4EFE9 0%, #ECD6CE 100%)' }}>
-        <div className="flex-1">
-          <p className="font-display text-xl text-ink leading-relaxed">
-            "Consistent, aligned content creates clarity, connection and long-term growth."
-          </p>
-          <p className="text-sm text-muted-foreground mt-3">— Maxine xx</p>
-        </div>
-        <div className="w-20 h-20 rounded-full flex-shrink-0 flex items-center justify-center text-4xl"
-          style={{ background: 'rgba(255,255,255,0.5)' }}>
-          ✦
-        </div>
-      </div>
-
-      {/* Recent content preview */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <div className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground">Recent content</div>
-          <button onClick={onGoToMonth} className="text-xs text-navy hover:underline">View all →</button>
-        </div>
-        <div className="grid grid-cols-3 gap-4">
-          {[...posts]
-            .sort((a, b) => new Date(b.publishDate) - new Date(a.publishDate))
-            .slice(0, 3)
-            .map(post => <MonthGridCard key={post.id} post={post} onSelect={() => {}} compact />)
-          }
-        </div>
+      {/* Status count tiles — 5 × 2 grid */}
+      <div className="grid grid-cols-5 gap-4">
+        {tiles.map(tile => {
+          const isAlert = tile.warn && tile.value > 0
+          return (
+            <button
+              key={tile.key}
+              onClick={() => { /* placeholder — wire to filtered view */ }}
+              className="text-left rounded-xl p-5 flex flex-col gap-2 transition-all hover:shadow-md group"
+              style={{
+                background:  isAlert ? '#FEF6EC' : '#FFFFFF',
+                border:      `1px solid ${isAlert ? '#EDD5AA' : '#EDE9E5'}`,
+                boxShadow:   '0 1px 4px rgba(50,54,66,0.07)',
+              }}
+            >
+              <div
+                className="font-display leading-none tabular-nums"
+                style={{ fontSize: '2.6rem', color: isAlert ? '#8C4A00' : '#323642' }}
+              >
+                {tile.value}
+              </div>
+              <div style={{
+                fontSize: '0.62rem', fontWeight: 600,
+                textTransform: 'uppercase', letterSpacing: '0.07em',
+                lineHeight: 1.35,
+                color: isAlert ? '#A05A10' : '#8C95A3',
+              }}>
+                {tile.label}
+              </div>
+              {isAlert && (
+                <div style={{
+                  fontSize: '0.55rem', fontWeight: 700, textTransform: 'uppercase',
+                  letterSpacing: '0.09em', color: '#C07820',
+                }}>
+                  Needs attention
+                </div>
+              )}
+            </button>
+          )
+        })}
       </div>
     </div>
   )
@@ -2002,7 +2044,6 @@ export default function ContentBoard({ client }) {
       {/* Views */}
       {view === 'overview' && (
         <ContentHubOverview
-          posts={posts} month={month} year={year} weekStart={weekStart}
           onGoToMonth={() => setView('month')}
           onGoToWeek={() => setView('week')}
         />
