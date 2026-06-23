@@ -441,6 +441,32 @@ function PillarChip({ label, active, onClick }) {
   )
 }
 
+const FILTER_PLATFORMS = ['Instagram','Facebook','LinkedIn','TikTok','Email','Blog','Website','YouTube','Pinterest']
+
+function PlatformFilterRow({ value, onChange }) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {['All', ...FILTER_PLATFORMS].map(p => {
+        const active = p === 'All' ? !value : value === p
+        return (
+          <button
+            key={p}
+            onClick={() => onChange(active && p !== 'All' ? '' : p === 'All' ? '' : p)}
+            className="rounded-full px-3 py-1 text-xs font-medium border transition-all whitespace-nowrap"
+            style={{
+              background:  active ? '#DAE6F6' : '#FFFFFF',
+              color:       active ? '#2A3F6A' : '#8C95A3',
+              borderColor: active ? '#B8CDED' : '#E7E2DB',
+            }}
+          >
+            {p}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 function AvatarInitial({ name, size = 6 }) {
   const initials = (name || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
   return (
@@ -1260,7 +1286,7 @@ function DroppableDayCell({ day, inMonth, isToday, children }) {
 // ── Month week row ─────────────────────────────────────────────────────────────
 const MAX_MINI_CARDS = 3
 
-function MonthWeekRow({ weekDays, weekNum, month, posts, filterPillar, onSelect, onAddPost, activeId }) {
+function MonthWeekRow({ weekDays, weekNum, month, posts, filterPillar, filterPlatform, onSelect, onAddPost, activeId }) {
   const today = new Date()
 
   // Date range label — only days within this month
@@ -1284,7 +1310,8 @@ function MonthWeekRow({ weekDays, weekNum, month, posts, filterPillar, onSelect,
           const inMonth  = day.getMonth() === month
           const isToday  = sameDay(day, today)
           const dayPosts = !inMonth ? [] : posts.filter(p => {
-            if (filterPillar && p.pillar !== filterPillar) return false
+            if (filterPillar  && p.pillar !== filterPillar)           return false
+            if (filterPlatform && !(p.platforms||[]).includes(filterPlatform)) return false
             return sameDay(new Date(p.publishDate), day)
           })
           const visible  = dayPosts.slice(0, MAX_MINI_CARDS)
@@ -1336,7 +1363,8 @@ function MonthWeekRow({ weekDays, weekNum, month, posts, filterPillar, onSelect,
 
 // ── Month view ─────────────────────────────────────────────────────────────────
 function MonthView({ posts, onSelect, month, year, onPrev, onNext, onGoToWeek, onAddPost, onMovePost }) {
-  const [filterPillar, setFilterPillar] = useState('')
+  const [filterPillar,   setFilterPillar]   = useState('')
+  const [filterPlatform, setFilterPlatform] = useState('')
   const [activeId, setActiveId] = useState(null)
 
   const sensors = useSensors(
@@ -1392,6 +1420,11 @@ function MonthView({ posts, onSelect, month, year, onPrev, onNext, onGoToWeek, o
         </div>
       </div>
 
+      {/* Platform filter */}
+      <div className="mb-3">
+        <PlatformFilterRow value={filterPlatform} onChange={setFilterPlatform} />
+      </div>
+
       {/* Content pillars filter */}
       <div className="flex items-center flex-wrap gap-2 mb-5">
         <span className="text-xs text-muted-foreground mr-1">Content Pillars</span>
@@ -1412,6 +1445,7 @@ function MonthView({ posts, onSelect, month, year, onPrev, onNext, onGoToWeek, o
             month={month}
             posts={posts}
             filterPillar={filterPillar}
+            filterPlatform={filterPlatform}
             onSelect={onSelect}
             onAddPost={onAddPost}
             activeId={activeId}
@@ -1588,7 +1622,7 @@ function WeekView({ posts, onSelect, weekStart, onPrev, onNext, onAttachFile, on
     ? Math.round(weekPosts.reduce((s, p) => s + (PROGRESS_MAP[p.status] || 0), 0) / weekPosts.length)
     : 0
   const postedCount  = weekPosts.filter(p => p.status === 'Posted').length
-  const activeFilters = [filterPlatform, filterType, filterStatus].filter(Boolean).length
+  const activeFilters = [filterType, filterStatus].filter(Boolean).length
 
   const filtered = posts.filter(p => {
     if (filterPlatform && !(p.platforms||[]).includes(filterPlatform)) return false
@@ -1684,16 +1718,16 @@ function WeekView({ posts, onSelect, weekStart, onPrev, onNext, onAttachFile, on
               style={{ width: `${avgProgress}%`, background: avgProgress === 100 ? '#BABEAF' : '#424B63' }} />
           </div>
         </div>
+
+        {/* Platform filter row — always visible */}
+        <div className="mt-3">
+          <PlatformFilterRow value={filterPlatform} onChange={v => setFilterPlatform(v)} />
+        </div>
       </div>
 
-      {/* ── Collapsible filter bar ── */}
+      {/* ── Collapsible filter bar (Type + Status) ── */}
       {showFilters && (
         <div className="card p-4 mb-4 space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground w-14 flex-shrink-0">Platform</span>
-            <FilterChip label="All" active={!filterPlatform} onClick={() => setFilterPlatform('')} />
-            {PLATFORMS.map(p => <FilterChip key={p} label={p} active={filterPlatform === p} onClick={() => setFilterPlatform(filterPlatform === p ? '' : p)} />)}
-          </div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground w-14 flex-shrink-0">Type</span>
             <FilterChip label="All" active={!filterType} onClick={() => setFilterType('')} />
