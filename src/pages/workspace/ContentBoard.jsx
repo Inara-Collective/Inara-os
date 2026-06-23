@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react'
 import {
   DndContext, DragOverlay, PointerSensor, useSensor, useSensors, closestCenter,
-  useDraggable, useDroppable, pointerWithin,
+  useDraggable, useDroppable, pointerWithin, useDndMonitor,
 } from '@dnd-kit/core'
 import {
   SortableContext, horizontalListSortingStrategy, useSortable, arrayMove,
@@ -467,6 +467,31 @@ function PlatformFilterRow({ value, onChange }) {
   )
 }
 
+// ── Shared drop-line indicator ──────────────────────────────────────────────────
+// horizontal=true → thin horizontal bar for vertical card stacks
+// horizontal=false (default) → thin vertical bar for horizontal lists (board columns)
+function DropLine({ horizontal = false }) {
+  if (horizontal) {
+    return (
+      <div style={{
+        width: '100%', height: 2,
+        background: '#323642', borderRadius: 1,
+        flexShrink: 0, pointerEvents: 'none',
+      }} />
+    )
+  }
+  return (
+    <div style={{
+      width: 2, alignSelf: 'stretch',
+      background: '#323642', borderRadius: 1,
+      flexShrink: 0, pointerEvents: 'none',
+      // Negative margins absorb the parent's gap-4 (16px) so the line
+      // occupies minimal extra space between columns.
+      margin: '0 -7px', zIndex: 10,
+    }} />
+  )
+}
+
 function AvatarInitial({ name, size = 6 }) {
   const initials = (name || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
   return (
@@ -585,41 +610,22 @@ function BoardColumn({ post, onSelect, dragHandleProps }) {
 
 // ── Board view (dnd-kit drag-to-reorder) ─────────────────────────────────────
 function SortableBoardColumn({ post, onSelect }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: post.id })
+  const { attributes, listeners, setNodeRef, isDragging } = useSortable({ id: post.id })
 
   return (
-    <div
-      ref={setNodeRef}
-      style={{
-        transform: CSS.Transform.toString(transform),
-        transition: transition ?? 'transform 200ms cubic-bezier(0.25, 0.46, 0.45, 0.94)',
-        position: 'relative',
-        flexShrink: 0,
-        zIndex: isDragging ? 20 : 1,
-      }}>
-      {/* Actual column — hidden while dragging (keeps layout / height) */}
+    <div ref={setNodeRef} style={{ position: 'relative', flexShrink: 0 }}>
+      {/* Column hidden in-place while dragging — DragOverlay carries the float */}
       <div style={{ visibility: isDragging ? 'hidden' : 'visible', pointerEvents: isDragging ? 'none' : undefined }}>
         <BoardColumn post={post} onSelect={onSelect} dragHandleProps={{ ...attributes, ...listeners }} />
       </div>
-
-      {/* Placeholder outline shown in the gap while dragging */}
-      {isDragging && (
-        <div style={{
-          position: 'absolute',
-          inset: 0,
-          border: '2px dashed #B7C1CB',
-          borderRadius: 12,
-          background: 'rgba(183,193,203,0.10)',
-          pointerEvents: 'none',
-        }} />
-      )}
     </div>
   )
 }
 
 function BoardView({ posts, onSelect }) {
-  const [order, setOrder]     = useState(() => posts.map(p => p.id))
-  const [activeId, setActiveId] = useState(null)
+  const [order,           setOrder]           = useState(() => posts.map(p => p.id))
+  const [activeId,        setActiveId]        = useState(null)
+  const [insertLineIndex, setInsertLineIndex] = useState(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
@@ -628,24 +634,41 @@ function BoardView({ posts, onSelect }) {
   const orderedPosts = order.map(id => posts.find(p => p.id === id)).filter(Boolean)
   const activePost   = posts.find(p => p.id === activeId) || null
 
+  function computeInsertIndex(activeId, overId) {
+    const ai = order.indexOf(activeId)
+    const oi = order.indexOf(overId)
+    if (ai === oi || oi < 0) return null
+    // When dragging right active will land at oi → line appears after oi
+    // When dragging left active will land at oi → line appears before oi
+    return ai < oi ? oi + 1 : oi
+  }
+
   return (
     <DndContext
       sensors={sensors}
       collisionDetection={closestCenter}
       onDragStart={({ active }) => setActiveId(active.id)}
+      onDragOver={({ active, over }) => {
+        if (!over || !active || active.id === over.id) { setInsertLineIndex(null); return }
+        setInsertLineIndex(computeInsertIndex(active.id, over.id))
+      }}
       onDragEnd={({ active, over }) => {
-        setActiveId(null)
+        setActiveId(null); setInsertLineIndex(null)
         if (!over || active.id === over.id) return
         setOrder(prev => arrayMove(prev, prev.indexOf(active.id), prev.indexOf(over.id)))
       }}
-      onDragCancel={() => setActiveId(null)}
+      onDragCancel={() => { setActiveId(null); setInsertLineIndex(null) }}
     >
       <SortableContext items={order} strategy={horizontalListSortingStrategy}>
         <div className="overflow-x-auto pb-6 -mx-6 px-6" style={{ scrollbarWidth: 'thin' }}>
           <div className="flex gap-4 min-w-max items-stretch">
-            {orderedPosts.map(post => (
-              <SortableBoardColumn key={post.id} post={post} onSelect={onSelect} />
+            {orderedPosts.map((post, i) => (
+              <React.Fragment key={post.id}>
+                {activeId !== null && insertLineIndex === i && <DropLine />}
+                <SortableBoardColumn post={post} onSelect={onSelect} />
+              </React.Fragment>
             ))}
+            {activeId !== null && insertLineIndex === orderedPosts.length && <DropLine />}
             <div className="w-[220px] flex-shrink-0">
               <button className="w-full h-10 flex items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-border text-xs text-muted-foreground hover:text-ink hover:border-ink/30 transition-colors">
                 + Add column
@@ -1282,6 +1305,7 @@ function DraggableMonthMiniCard({ post, onSelect, isActiveDrag }) {
   return (
     <div
       ref={setNodeRef}
+      data-month-card
       style={{
         visibility: isActiveDrag ? 'hidden' : 'visible',
         touchAction: 'none',
@@ -1297,24 +1321,16 @@ function DraggableMonthMiniCard({ post, onSelect, isActiveDrag }) {
   )
 }
 
-function DroppableDayCell({ day, inMonth, isToday, children }) {
-  const { setNodeRef, isOver } = useDroppable({ id: dateKey(day), disabled: !inMonth })
+function DroppableDayCell({ day, inMonth, isToday, children, cellKey }) {
+  const { setNodeRef } = useDroppable({ id: dateKey(day), disabled: !inMonth })
   return (
     <div
       ref={setNodeRef}
+      data-month-cell={cellKey}
       className={`flex flex-col transition-colors duration-150 ${
-        !inMonth
-          ? 'bg-cream/60'
-          : isOver
-          ? 'bg-navy/5'
-          : isToday
-          ? ''
-          : 'bg-white'
+        !inMonth ? 'bg-cream/60' : isToday ? '' : 'bg-white'
       }`}
-      style={{
-        minHeight: 140,
-        boxShadow: isOver && inMonth ? 'inset 0 0 0 2px rgba(66,75,99,0.25)' : undefined,
-      }}
+      style={{ minHeight: 140 }}
     >
       {children}
     </div>
@@ -1324,8 +1340,28 @@ function DroppableDayCell({ day, inMonth, isToday, children }) {
 // ── Month week row ─────────────────────────────────────────────────────────────
 const MAX_MINI_CARDS = 3
 
-function MonthWeekRow({ weekDays, weekNum, month, posts, filterPillar, filterPlatform, onSelect, onAddPost, activeId }) {
+function MonthWeekRow({ weekDays, weekNum, month, posts, filterPillar, filterPlatform, onSelect, onAddPost, activeId, pointerY }) {
   const today = new Date()
+  const [overDayKey, setOverDayKey] = useState(null)
+
+  useDndMonitor({
+    onDragMove:   ({ over }) => setOverDayKey(over?.id ?? null),
+    onDragEnd:    ()         => setOverDayKey(null),
+    onDragCancel: ()         => setOverDayKey(null),
+  })
+
+  // Compute insertion index within a cell's card stack from cursor Y.
+  function computeMonthInsertIdx(cellKey) {
+    if (pointerY == null) return 0
+    const cards = document.querySelectorAll(`[data-month-cell="${cellKey}"] [data-month-card]`)
+    let idx = 0
+    for (const card of cards) {
+      const rect = card.getBoundingClientRect()
+      if (pointerY > rect.top + rect.height / 2) idx++
+      else break
+    }
+    return idx
+  }
 
   // Date range label — only days within this month
   const monthDays  = weekDays.filter(d => d.getMonth() === month)
@@ -1355,8 +1391,12 @@ function MonthWeekRow({ weekDays, weekNum, month, posts, filterPillar, filterPla
           const visible  = dayPosts.slice(0, MAX_MINI_CARDS)
           const overflow = dayPosts.length - MAX_MINI_CARDS
 
+          const cellKey   = dateKey(day)
+          const isOverCell = overDayKey === cellKey && activeId !== null
+          const insertIdx  = isOverCell ? computeMonthInsertIdx(cellKey) : null
+
           return (
-            <DroppableDayCell key={i} day={day} inMonth={inMonth} isToday={isToday}>
+            <DroppableDayCell key={i} day={day} inMonth={inMonth} isToday={isToday} cellKey={cellKey}>
               {/* Day header */}
               <div className={`px-2 py-2 flex items-center justify-between border-b border-border/60 flex-shrink-0 ${isToday ? 'bg-navy' : ''}`}>
                 <div>
@@ -1375,16 +1415,19 @@ function MonthWeekRow({ weekDays, weekNum, month, posts, filterPillar, filterPla
                 )}
               </div>
 
-              {/* Cards */}
+              {/* Cards + drop line */}
               <div className="p-1.5 space-y-1.5 flex-1">
-                {visible.map(post => (
-                  <DraggableMonthMiniCard
-                    key={post.id}
-                    post={post}
-                    onSelect={onSelect}
-                    isActiveDrag={activeId === post.id}
-                  />
+                {visible.map((post, cardIdx) => (
+                  <React.Fragment key={post.id}>
+                    {isOverCell && insertIdx === cardIdx && <DropLine horizontal />}
+                    <DraggableMonthMiniCard
+                      post={post}
+                      onSelect={onSelect}
+                      isActiveDrag={activeId === post.id}
+                    />
+                  </React.Fragment>
                 ))}
+                {isOverCell && insertIdx === visible.length && <DropLine horizontal />}
                 {overflow > 0 && (
                   <button className="text-[0.58rem] font-medium text-navy hover:underline px-0.5 block">
                     +{overflow} more
@@ -1403,7 +1446,8 @@ function MonthWeekRow({ weekDays, weekNum, month, posts, filterPillar, filterPla
 function MonthView({ posts, onSelect, month, year, onPrev, onNext, onGoToWeek, onAddPost, onMovePost }) {
   const [filterPillar,   setFilterPillar]   = useState('')
   const [filterPlatform, setFilterPlatform] = useState('')
-  const [activeId, setActiveId] = useState(null)
+  const [activeId,  setActiveId]  = useState(null)
+  const [pointerY,  setPointerY]  = useState(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
@@ -1412,7 +1456,7 @@ function MonthView({ posts, onSelect, month, year, onPrev, onNext, onGoToWeek, o
   const activePost = posts.find(p => p.id === activeId) || null
 
   function handleDragEnd({ active, over }) {
-    setActiveId(null)
+    setActiveId(null); setPointerY(null)
     if (!over) return
     const [y, m, d] = over.id.split('-').map(Number)
     const newDate = new Date(y, m, d)
@@ -1440,8 +1484,11 @@ function MonthView({ posts, onSelect, month, year, onPrev, onNext, onGoToWeek, o
       sensors={sensors}
       collisionDetection={pointerWithin}
       onDragStart={({ active }) => setActiveId(active.id)}
+      onDragMove={({ activatorEvent, delta }) => {
+        if (activatorEvent) setPointerY((activatorEvent.clientY || 0) + (delta?.y || 0))
+      }}
       onDragEnd={handleDragEnd}
-      onDragCancel={() => setActiveId(null)}
+      onDragCancel={() => { setActiveId(null); setPointerY(null) }}
     >
     <div>
       {/* Header */}
@@ -1487,6 +1534,7 @@ function MonthView({ posts, onSelect, month, year, onPrev, onNext, onGoToWeek, o
             onSelect={onSelect}
             onAddPost={onAddPost}
             activeId={activeId}
+            pointerY={pointerY}
           />
         ))}
       </div>
@@ -1527,6 +1575,7 @@ function WeekCard({ post, onSelect, onFileDrop }) {
 
   return (
     <div
+      data-week-card
       draggable
       onDragStart={e => { e.dataTransfer.setData('postId', String(post.id)); e.dataTransfer.effectAllowed = 'move' }}
       onDragEnter={e => { e.preventDefault(); e.stopPropagation(); setDragOver(true) }}
@@ -1639,8 +1688,9 @@ function WeekCard({ post, onSelect, onFileDrop }) {
 // ── Week view ──────────────────────────────────────────────────────────────────
 function WeekView({ posts, onSelect, weekStart, onPrev, onNext, onAttachFile, onCreatePost, onMovePost, onGoToBoard }) {
   const today      = new Date()
-  const [dragOverKey,    setDragOverKey]    = useState(null)
-  const [showFilters,    setShowFilters]    = useState(false)
+  const [dragOverKey,  setDragOverKey]  = useState(null)
+  const [dragInsertIdx, setDragInsertIdx] = useState(0)
+  const [showFilters,  setShowFilters]  = useState(false)
   const [filterPlatform, setFilterPlatform] = useState('')
   const [filterType,     setFilterType]     = useState('')
   const [filterStatus,   setFilterStatus]   = useState('')
@@ -1680,6 +1730,19 @@ function WeekView({ posts, onSelect, weekStart, onPrev, onNext, onAttachFile, on
     const diff = Math.round((todayMonday - currentMonday) / (7 * 24 * 60 * 60 * 1000))
     if (diff > 0) for (let i = 0; i < diff; i++) onNext()
     else if (diff < 0) for (let i = 0; i < -diff; i++) onPrev()
+  }
+
+  // Compute which gap in a day column's card stack the cursor is in.
+  // Uses data-week-card elements inside [data-drop-day="KEY"].
+  function computeWeekInsertIdx(clientY, dayKey) {
+    const cards = document.querySelectorAll(`[data-drop-day="${dayKey}"] [data-week-card]`)
+    let idx = 0
+    for (const card of cards) {
+      const rect = card.getBoundingClientRect()
+      if (clientY > rect.top + rect.height / 2) idx++
+      else break
+    }
+    return idx
   }
 
   const onMouseDown = e => {
@@ -1790,12 +1853,19 @@ function WeekView({ posts, onSelect, weekStart, onPrev, onNext, onAttachFile, on
             const dayFiltered  = filtered.filter(p => sameDay(new Date(p.publishDate), day))
             const isDropTarget = dragOverKey === key
 
+            const isOver = dragOverKey === key
+
             return (
               <div key={i}
+                data-drop-day={key}
                 className={`flex flex-col border-r border-border last:border-r-0 relative transition-colors ${isToday ? 'bg-navy/[0.025]' : 'bg-white'}`}
                 style={{ width: 220, minWidth: 220 }}
                 onDragEnter={e => { e.preventDefault(); setDragOverKey(key) }}
-                onDragOver={e  => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }}
+                onDragOver={e  => {
+                  e.preventDefault(); e.dataTransfer.dropEffect = 'move'
+                  setDragOverKey(key)
+                  setDragInsertIdx(computeWeekInsertIdx(e.clientY, key))
+                }}
                 onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget)) setDragOverKey(null) }}
                 onDrop={e => {
                   e.preventDefault(); setDragOverKey(null)
@@ -1828,11 +1898,15 @@ function WeekView({ posts, onSelect, weekStart, onPrev, onNext, onAttachFile, on
                   </div>
                 </div>
 
-                {/* Cards */}
+                {/* Cards + drop line */}
                 <div className="p-3 space-y-3">
-                  {dayFiltered.map(p => (
-                    <WeekCard key={p.id} post={p} onSelect={onSelect} onFileDrop={file => onAttachFile(p.id, file)} />
+                  {dayFiltered.map((p, cardIdx) => (
+                    <React.Fragment key={p.id}>
+                      {isOver && dragInsertIdx === cardIdx && <DropLine horizontal />}
+                      <WeekCard post={p} onSelect={onSelect} onFileDrop={file => onAttachFile(p.id, file)} />
+                    </React.Fragment>
                   ))}
+                  {isOver && dragInsertIdx === dayFiltered.length && <DropLine horizontal />}
                 </div>
               </div>
             )
