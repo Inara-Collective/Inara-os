@@ -1116,6 +1116,25 @@ function DetailPanel({ post, onClose, onStatusChange, onUpdatePost }) {
   )
 }
 
+// ── Placeholder views for channels not yet built ──────────────────────────────
+function PlaceholderView({ title, description, onBack }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-24 text-center">
+      <div className="w-14 h-14 rounded-full flex items-center justify-center mb-6"
+        style={{ background: '#F4F0EE', border: '1.5px solid #E7E2DB' }}>
+        <span className="text-2xl">◈</span>
+      </div>
+      <h2 className="font-display text-3xl text-ink mb-2">{title}</h2>
+      <p className="text-sm text-muted-foreground max-w-xs mb-8">{description}</p>
+      <button
+        onClick={onBack}
+        className="text-sm font-medium text-navy hover:underline">
+        ← Back to Overview
+      </button>
+    </div>
+  )
+}
+
 // ── Overview ──────────────────────────────────────────────────────────────────
 // ── Marketing Hub Overview ─────────────────────────────────────────────────────
 const OVERVIEW_CHANNELS = ['All', 'Social', 'Email', 'Website', 'Campaigns', 'Meta Ads']
@@ -1154,7 +1173,30 @@ const CHANNEL_MOCKS = {
   },
 }
 
-function ContentHubOverview({ onGoToMonth, onGoToWeek }) {
+// Where each channel tab navigates to when clicked
+const CHANNEL_NAV = {
+  Social:     { view: 'week' },
+  Email:      { view: 'week', platform: 'Email' },
+  Website:    { view: 'website' },
+  Campaigns:  { view: 'campaigns' },
+  'Meta Ads': { view: 'metaads' },
+}
+
+// Where each count tile navigates to when clicked
+const TILE_NAV = {
+  toCreate:       { view: 'week',  status: 'Idea Only'     },
+  toEdit:         { view: 'week',  status: 'Needs Changes' },
+  toReview:       { view: 'week',  status: 'To Review'     },
+  inProgress:     { view: 'week',  status: 'Draft'         },
+  overdue:        { view: 'month'                          },
+  scheduled:      { view: 'week',  status: 'Scheduled'     },
+  published:      { view: 'week',  status: 'Posted'        },
+  metaAds:        { view: 'metaads'                        },
+  campaigns:      { view: 'campaigns'                      },
+  websiteUpdates: { view: 'website'                        },
+}
+
+function ContentHubOverview({ onNavigate }) {
   const [channel, setChannel] = useState('All')
 
   const m = CHANNEL_MOCKS[channel] || CHANNEL_MOCKS.All
@@ -1180,14 +1222,20 @@ function ContentHubOverview({ onGoToMonth, onGoToWeek }) {
         <p className="text-sm text-muted-foreground mt-1">All your content, channels and campaigns at a glance.</p>
       </div>
 
-      {/* Channel tabs */}
+      {/* Channel tabs — All filters tiles; others navigate to that channel's workspace */}
       <div className="flex flex-wrap gap-2">
         {OVERVIEW_CHANNELS.map(ch => {
           const active = channel === ch
           return (
             <button
               key={ch}
-              onClick={() => setChannel(ch)}
+              onClick={() => {
+                if (ch === 'All') {
+                  setChannel('All')
+                } else {
+                  onNavigate(CHANNEL_NAV[ch])
+                }
+              }}
               className="rounded-full px-4 py-1.5 text-sm font-medium border transition-all whitespace-nowrap"
               style={{
                 background:  active ? '#DAE6F6' : '#FFFFFF',
@@ -1208,7 +1256,7 @@ function ContentHubOverview({ onGoToMonth, onGoToWeek }) {
           return (
             <button
               key={tile.key}
-              onClick={() => { /* placeholder — wire to filtered view */ }}
+              onClick={() => onNavigate(TILE_NAV[tile.key])}
               className="text-left rounded-xl p-5 flex flex-col gap-2 transition-all hover:shadow-md group"
               style={{
                 background:  isAlert ? '#FEF6EC' : '#FFFFFF',
@@ -1728,14 +1776,14 @@ function WeekCard({ post, onSelect, onFileDrop }) {
 }
 
 // ── Week view ──────────────────────────────────────────────────────────────────
-function WeekView({ posts, onSelect, weekStart, onPrev, onNext, onAttachFile, onCreatePost, onMovePost, onGoToBoard }) {
+function WeekView({ posts, onSelect, weekStart, onPrev, onNext, onAttachFile, onCreatePost, onMovePost, onGoToBoard, initialStatus = '', initialPlatform = '' }) {
   const today      = new Date()
   const [dragOverKey,  setDragOverKey]  = useState(null)
   const [dragInsertIdx, setDragInsertIdx] = useState(0)
-  const [showFilters,  setShowFilters]  = useState(false)
-  const [filterPlatform, setFilterPlatform] = useState('')
+  const [showFilters,  setShowFilters]  = useState(() => Boolean(initialStatus))
+  const [filterPlatform, setFilterPlatform] = useState(initialPlatform)
   const [filterType,     setFilterType]     = useState('')
-  const [filterStatus,   setFilterStatus]   = useState('')
+  const [filterStatus,   setFilterStatus]   = useState(initialStatus)
 
   const boardRef   = useRef(null)
   const dragScroll = useRef({ active: false, startX: 0, scrollLeft: 0 })
@@ -1965,12 +2013,20 @@ function WeekView({ posts, onSelect, weekStart, onPrev, onNext, onAttachFile, on
 
 // ── Main ContentBoard ──────────────────────────────────────────────────────────
 export default function ContentBoard({ client }) {
-  const [view,       setView]      = useState('overview')
-  const [month,      setMonth]     = useState(new Date().getMonth())
-  const [year,       setYear]      = useState(new Date().getFullYear())
-  const [weekStart,  setWeekStart] = useState(getMonday(new Date()))
-  const [selectedId, setSelectedId] = useState(null)
-  const [posts,      setPosts]     = useState(SEED_POSTS)
+  const [view,            setView]           = useState('overview')
+  const [month,           setMonth]          = useState(new Date().getMonth())
+  const [year,            setYear]           = useState(new Date().getFullYear())
+  const [weekStart,       setWeekStart]      = useState(getMonday(new Date()))
+  const [selectedId,      setSelectedId]     = useState(null)
+  const [posts,           setPosts]          = useState(SEED_POSTS)
+  const [initialStatus,   setInitialStatus]  = useState('')
+  const [initialPlatform, setInitialPlatform] = useState('')
+
+  function navigateTo({ view: nextView, status = '', platform = '' }) {
+    setInitialStatus(status)
+    setInitialPlatform(platform)
+    setView(nextView)
+  }
 
   const selected = posts.find(p => p.id === selectedId) || null
 
@@ -2043,10 +2099,7 @@ export default function ContentBoard({ client }) {
 
       {/* Views */}
       {view === 'overview' && (
-        <ContentHubOverview
-          onGoToMonth={() => setView('month')}
-          onGoToWeek={() => setView('week')}
-        />
+        <ContentHubOverview onNavigate={navigateTo} />
       )}
 
       {view === 'month' && (
@@ -2065,6 +2118,32 @@ export default function ContentBoard({ client }) {
           posts={posts} onSelect={p => setSelectedId(p.id)}
           weekStart={weekStart} onPrev={prevWeek} onNext={nextWeek}
           onAttachFile={attachFileToPosts} onCreatePost={createPostFromDrop} onMovePost={movePost}
+          initialStatus={initialStatus}
+          initialPlatform={initialPlatform}
+        />
+      )}
+
+      {view === 'website' && (
+        <PlaceholderView
+          title="Website"
+          description="Track and manage website content updates, landing pages, and blog posts. Coming soon."
+          onBack={() => setView('overview')}
+        />
+      )}
+
+      {view === 'campaigns' && (
+        <PlaceholderView
+          title="Campaigns"
+          description="Plan, track and report on marketing campaigns across all channels. Coming soon."
+          onBack={() => setView('overview')}
+        />
+      )}
+
+      {view === 'metaads' && (
+        <PlaceholderView
+          title="Meta Ads"
+          description="Manage your Meta advertising — create, review and monitor ad performance. Coming soon."
+          onBack={() => setView('overview')}
         />
       )}
 
