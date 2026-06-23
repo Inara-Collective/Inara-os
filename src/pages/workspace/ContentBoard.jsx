@@ -756,6 +756,7 @@ function DetailPanel({ post, onClose, onStatusChange, onUpdatePost }) {
   const [showAddApprover, setShowAddApprover] = useState(false)
   const [newApproverName, setNewApproverName] = useState('')
   const [conceptOpen, setConceptOpen] = useState(false)
+  const [captionTab, setCaptionTab] = useState('')  // '' = All
 
   if (!post) return null
 
@@ -943,30 +944,67 @@ function DetailPanel({ post, onClose, onStatusChange, onUpdatePost }) {
           {/* Files */}
           {(post.files || []).map((f, i) => <FileCard key={i} file={f} />)}
 
-          {/* Per-platform captions — one textarea per selected caption-eligible platform */}
+          {/* Per-platform captions */}
           {captionPlats.length > 0 && (
             <div className="space-y-3">
-              <div className="text-[0.55rem] font-semibold uppercase tracking-wider text-muted-foreground">Captions</div>
-              {captionPlats.map(platform => {
-                const m = PLATFORM_META[platform] || PLATFORM_META_DEFAULT
-                return (
-                  <div key={platform} className="rounded-md border border-border bg-white p-4">
-                    <div className="mb-2.5">
-                      <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[0.62rem] font-semibold"
-                        style={{ background: m.bg, color: m.color }}>{platform}</span>
+              {/* Header row: label + platform tabs */}
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="text-[0.55rem] font-semibold uppercase tracking-wider text-muted-foreground flex-shrink-0">Captions</div>
+                <div className="flex items-center gap-1 flex-wrap">
+                  {/* All tab */}
+                  <button
+                    onClick={() => setCaptionTab('')}
+                    className="rounded-full px-2.5 py-0.5 text-[0.62rem] font-semibold border transition-all whitespace-nowrap"
+                    style={{
+                      background:  !captionTab ? '#DAE6F6' : '#FFFFFF',
+                      color:       !captionTab ? '#2A3F6A' : '#8C95A3',
+                      borderColor: !captionTab ? '#B8CDED' : '#E7E2DB',
+                    }}
+                  >All</button>
+                  {/* One tab per platform */}
+                  {captionPlats.map(platform => {
+                    const m      = PLATFORM_META[platform] || PLATFORM_META_DEFAULT
+                    const active = captionTab === platform
+                    return (
+                      <button
+                        key={platform}
+                        onClick={() => setCaptionTab(active ? '' : platform)}
+                        className="rounded-full px-2.5 py-0.5 text-[0.62rem] font-semibold border transition-all whitespace-nowrap"
+                        style={{
+                          background:  active ? m.bg      : '#FFFFFF',
+                          color:       active ? m.color   : '#8C95A3',
+                          borderColor: active ? m.color + '55' : '#E7E2DB',
+                        }}
+                      >{platform}</button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Caption fields — filtered by tab */}
+              {captionPlats
+                .filter(p => !captionTab || captionTab === p)
+                .map(platform => {
+                  const m = PLATFORM_META[platform] || PLATFORM_META_DEFAULT
+                  return (
+                    <div key={platform} className="rounded-md border border-border bg-white p-4">
+                      <div className="mb-2.5">
+                        <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[0.62rem] font-semibold"
+                          style={{ background: m.bg, color: m.color }}>{platform}</span>
+                      </div>
+                      <textarea
+                        value={(post.platformCaptions || {})[platform] || ''}
+                        onChange={e => onUpdatePost(post.id, {
+                          platformCaptions: { ...(post.platformCaptions || {}), [platform]: e.target.value },
+                        })}
+                        placeholder={`Caption for ${platform}…`}
+                        rows={4}
+                        className="w-full text-sm text-ink leading-relaxed resize-none focus:outline-none focus:ring-1 focus:ring-navy rounded-sm placeholder:text-muted-foreground/50"
+                      />
                     </div>
-                    <textarea
-                      value={(post.platformCaptions || {})[platform] || ''}
-                      onChange={e => onUpdatePost(post.id, {
-                        platformCaptions: { ...(post.platformCaptions || {}), [platform]: e.target.value },
-                      })}
-                      placeholder={`Caption for ${platform}…`}
-                      rows={4}
-                      className="w-full text-sm text-ink leading-relaxed resize-none focus:outline-none focus:ring-1 focus:ring-navy rounded-sm placeholder:text-muted-foreground/50"
-                    />
-                  </div>
-                )
-              })}
+                  )
+                })
+              }
             </div>
           )}
 
